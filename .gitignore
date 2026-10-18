@@ -1,0 +1,31 @@
+# Build and Dependency Directories
+target/
+node_modules/
+dist/
+build/
+
+# IDE & Editor Files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# Log Files
+*.log
+logs/
+
+# Environment and Secret Files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Temp and Cache
+.cache/
+.eslintcache
+.vite/
+tmp/
+scratch/

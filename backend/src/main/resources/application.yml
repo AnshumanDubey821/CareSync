@@ -1,0 +1,73 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: caresync-backend
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:caresync}?timezone=UTC}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+
+
+
+mail:
+  enabled: ${MAIL_ENABLED:false}
+  from: ${MAIL_FROM:noreply@caresync.com}
+
+
+app:
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  seed:
+    enabled: ${APP_SEED_ENABLED:false}
+  scheduling:
+    timezone: ${SCHEDULER_TIMEZONE:Asia/Kolkata}
+    reminder-enabled: ${REMINDER_SCHEDULER_ENABLED:true}
+    reminder-interval-ms: ${REMINDER_INTERVAL_MS:60000}
+    reminder-initial-delay-ms: ${REMINDER_INITIAL_DELAY_MS:10000}
+    reminder-cron: ${REMINDER_CRON:0 0 8 * * *}
+  oauth2:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+    authorized-redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:5173/oauth2/callback}
+    frontend-login-uri: ${FRONTEND_LOGIN_URI:http://localhost:5173/login}
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration-ms: ${JWT_EXPIRATION:86400000}
+
+
