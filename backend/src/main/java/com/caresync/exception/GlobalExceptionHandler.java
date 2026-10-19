@@ -178,6 +178,63 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    @ExceptionHandler(GooglePlacesRateLimitException.class)
+    public ResponseEntity<ErrorResponse> handleGooglePlacesRateLimit(GooglePlacesRateLimitException ex) {
+        ErrorResponse response = ErrorResponse.builder()
+                .status(HttpStatus.TOO_MANY_REQUESTS.value())
+                .error("Rate Limit Exceeded")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+                .body(response);
+    }
+
+    @ExceptionHandler(GooglePlacesMonthlyLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleGooglePlacesMonthlyLimitExceeded(GooglePlacesMonthlyLimitExceededException ex) {
+        ErrorResponse response = ErrorResponse.builder()
+                .status(HttpStatus.TOO_MANY_REQUESTS.value())
+                .error("Monthly Quota Exceeded")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
+    }
+
+    @ExceptionHandler(GooglePlacesDisabledException.class)
+    public ResponseEntity<ErrorResponse> handleGooglePlacesDisabled(GooglePlacesDisabledException ex) {
+        ErrorResponse response = ErrorResponse.builder()
+                .status(HttpStatus.SERVICE_UNAVAILABLE.value())
+                .error("Service Disabled")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+    }
+
+    @ExceptionHandler(GooglePlacesConfigurationException.class)
+    public ResponseEntity<ErrorResponse> handleGooglePlacesConfiguration(GooglePlacesConfigurationException ex) {
+        ErrorResponse response = ErrorResponse.builder()
+                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                .error("Configuration Error")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
+    @ExceptionHandler(GooglePlacesApiException.class)
+    public ResponseEntity<ErrorResponse> handleGooglePlacesApi(GooglePlacesApiException ex) {
+        ErrorResponse response = ErrorResponse.builder()
+                .status(ex.getStatus().value())
+                .error("Places Service Error")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(ex.getStatus()).body(response);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex) {
         log.error("Unhandled exception occurred: ", ex);

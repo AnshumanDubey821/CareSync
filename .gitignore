@@ -18,10 +18,16 @@ logs/
 
 # Environment and Secret Files
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+*.key
+*.pem
+secrets/
+*.credentials
+*.secret
 
 # Temp and Cache
 .cache/

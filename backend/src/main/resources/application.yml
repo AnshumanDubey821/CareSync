@@ -70,4 +70,21 @@ jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration-ms: ${JWT_EXPIRATION:86400000}
 
+google:
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+    enabled: ${GOOGLE_PLACES_ENABLED:false}
+    base-url: ${GOOGLE_PLACES_BASE_URL:https://places.googleapis.com/v1}
+    connect-timeout-ms: ${GOOGLE_PLACES_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${GOOGLE_PLACES_READ_TIMEOUT_MS:5000}
+    rate-limit:
+      per-user-per-minute: ${GOOGLE_PLACES_RATE_LIMIT_PER_USER:10}
+      per-ip-per-minute: ${GOOGLE_PLACES_RATE_LIMIT_PER_IP:30}
+      photo-per-user-per-minute: ${GOOGLE_PLACES_RATE_LIMIT_PHOTO:5}
+    monthly-guard:
+      warning-limit: ${GOOGLE_PLACES_MONTHLY_WARNING_LIMIT:68000}
+      hard-limit: ${GOOGLE_PLACES_MONTHLY_HARD_LIMIT:69000}
+    trusted-proxies: ${GOOGLE_PLACES_TRUSTED_PROXIES:}
+
+
 

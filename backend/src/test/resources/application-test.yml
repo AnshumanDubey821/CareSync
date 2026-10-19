@@ -23,3 +23,19 @@ app:
     timezone: Asia/Kolkata
     reminder-enabled: false
 
+google:
+  places:
+    api-key: test-dummy-places-key
+    enabled: false
+    base-url: http://localhost:8089/v1
+    connect-timeout-ms: 1000
+    read-timeout-ms: 1000
+    rate-limit:
+      per-user-per-minute: 10
+      per-ip-per-minute: 30
+      photo-per-user-per-minute: 5
+    monthly-guard:
+      warning-limit: 100
+      hard-limit: 120
+
+
