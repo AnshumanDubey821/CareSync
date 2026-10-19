@@ -177,16 +177,16 @@ const DoctorProfilePage = () => {
           {/* Consultation Fee */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-              Consultation Fee ($) *
+              Consultation Fee (₹ INR) *
             </label>
             <div className="relative">
-              <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <span className="w-4 h-4 font-bold text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center">₹</span>
               <input
                 type="number"
-                step="0.01"
+                step="1"
                 min="0"
                 required
-                placeholder="e.g. 150.00"
+                placeholder="e.g. 600"
                 value={consultationFee}
                 onChange={(e) => setConsultationFee(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20 font-medium"

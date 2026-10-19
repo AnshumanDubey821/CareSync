@@ -46,15 +46,20 @@ const Sidebar = () => {
     <aside className="w-64 bg-white border-r border-slate-200 min-h-[calc(100vh-4rem)] p-4 flex flex-col justify-between shrink-0">
       <div className="space-y-6">
         {/* Role Badge Indicator */}
-        <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            {role} Portal
+        <div className="px-3.5 py-2.5 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100/80 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-teal-600 animate-pulse"></div>
+            <span className="text-xs font-bold text-teal-950 uppercase tracking-wider">
+              {role} Portal
+            </span>
+          </div>
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-teal-700 border border-teal-100 shadow-2xs">
+            Active
           </span>
         </div>
 
         {/* Navigation Items */}
-        <nav className="space-y-1">
+        <nav className="space-y-1.5">
           {links.map((link) => {
             const Icon = link.icon;
             return (
@@ -64,8 +69,8 @@ const Sidebar = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                     isActive
-                      ? 'bg-sky-50 text-sky-700 shadow-sm border border-sky-100'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'bg-teal-50 text-teal-800 shadow-xs border border-teal-200/80'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                   }`
                 }
               >
@@ -78,9 +83,14 @@ const Sidebar = () => {
       </div>
 
       {/* Footer Info */}
-      <div className="p-3 bg-sky-50/60 border border-sky-100 rounded-xl text-xs text-sky-800 space-y-1">
-        <p className="font-semibold">Need Help?</p>
-        <p className="text-slate-600">Contact CareSync support for booking queries.</p>
+      <div className="p-3.5 bg-teal-50/70 border border-teal-100 rounded-xl text-xs text-teal-900 space-y-1">
+        <p className="font-bold flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-teal-600"></span>
+          CareSync Support
+        </p>
+        <p className="text-slate-600 leading-relaxed text-[11px]">
+          Toll-free 1800-CARE-SYNC (24/7) for emergency booking assistance.
+        </p>
       </div>
     </aside>
   );

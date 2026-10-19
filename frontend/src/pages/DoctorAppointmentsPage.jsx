@@ -26,7 +26,7 @@ const DoctorAppointmentsPage = () => {
     } catch (err) {
       console.error('Failed to load doctor appointments:', err);
       setToast({ message: 'Failed to fetch appointments schedule.', type: 'error' });
-    } fontally: {
+    } finally {
       setIsLoading(false);
     }
   };

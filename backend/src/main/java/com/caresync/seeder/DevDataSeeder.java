@@ -107,7 +107,7 @@ public class DevDataSeeder implements CommandLineRunner {
                     .email("admin" + i + "@caresync.com")
                     .password(password)
                     .fullName("System Admin " + i)
-                    .phoneNumber("+1 (555) 010-000" + i)
+                    .phoneNumber("+91 98100 0000" + i)
                     .role(Role.ADMIN)
                     .active(true)
                     .build();
@@ -125,36 +125,40 @@ public class DevDataSeeder implements CommandLineRunner {
         };
 
         String[] firstNames = {
-                "Sarah", "Robert", "Emily", "David", "Michael", "Jennifer", "James", "Jessica",
-                "William", "Elizabeth", "Richard", "Linda", "Joseph", "Barbara", "Thomas", "Susan",
-                "Charles", "Karen", "Christopher", "Nancy", "Daniel", "Lisa", "Matthew", "Margaret",
-                "Anthony", "Betty", "Mark", "Sandra", "Donald", "Ashley"
+                "Rajesh", "Sunita", "Vikram", "Ananya", "Suresh", "Priya", "Arjun", "Deepa",
+                "Rohan", "Meera", "Amit", "Kavita", "Sanjay", "Pooja", "Manoj", "Sneha",
+                "Alok", "Divya", "Gaurav", "Nisha", "Ramesh", "Swati", "Abhishek", "Aarti",
+                "Ashok", "Neha", "Pradeep", "Shweta", "Vivek", "Tanvi"
         };
 
         String[] lastNames = {
-                "Jenkins", "Chen", "Taylor", "Patel", "Williams", "Miller", "Davis", "Rodriguez",
-                "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Moore",
-                "Jackson", "Martin", "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark",
-                "Ramirez", "Lewis", "Robinson", "Walker", "Young"
+                "Sharma", "Patel", "Verma", "Iyer", "Nair", "Reddy", "Joshi", "Gupta",
+                "Kulkarni", "Deshmukh", "Choudhury", "Bose", "Mehta", "Bhat", "Rao", "Menon",
+                "Singh", "Pillai", "Agarwal", "Mukherjee", "Malhotra", "Kapoor", "Mishra", "Pandey",
+                "Saxena", "Sen", "Bhattacharya", "Das", "Chatterjee", "Tripathi"
         };
 
         String[] qualificationsList = {
-                "MD, FACC", "MBBS, MD (Pediatrics)", "MD (Dermatology), Board Certified",
-                "MS (Orthopedics), FRCS", "MD (Neurology), PhD", "MBBS, MS (ENT)",
-                "MD (Obstetrics & Gynecology)", "MD, DO (Ophthalmology)", "MD (Psychiatry), ABPN",
-                "MD (Pulmonary Medicine)", "MD (Gastroenterology)", "MD (Endocrinology)",
-                "MBBS, MCh (Urology)", "MD (Internal Medicine)"
+                "MBBS, MD (General Medicine)", "MBBS, MD (Pediatrics), DNB", "MBBS, MD (Dermatology), DVD",
+                "MBBS, MS (Orthopaedics), MCh", "MBBS, DM (Neurology)", "MBBS, MS (ENT), DLO",
+                "MBBS, MD (Obstetrics & Gynaecology), FICOG", "MBBS, MS (Ophthalmology)", "MBBS, MD (Psychiatry), DPM",
+                "MBBS, MD (Pulmonary Medicine)", "MBBS, DM (Gastroenterology)", "MBBS, DM (Endocrinology)",
+                "MBBS, MCh (Urology)", "MBBS, DM (Cardiology), FACC"
         };
 
         String[] locations = {
-                "Metropolitan Health Tower, Suite 301, New York, NY",
-                "Westside Medical Pavilion, Suite 105, Chicago, IL",
-                "Central Clinic & Wellness Center, Austin, TX",
-                "St. Jude Specialist Center, Suite 412, San Francisco, CA",
-                "Valley Healthcare Plaza, Suite 204, Seattle, WA",
-                "Oakridge Medical Complex, Suite 510, Boston, MA",
-                "Sunrise General Hospital, Suite 102, Miami, FL",
-                "Downtown Medical Suites, Suite 308, Denver, CO"
+                "Apollo Hospitals, 154/11 Bannerghatta Road, Indiranagar, Bengaluru, Karnataka",
+                "Fortis Hospital, Sector 62, Phase VIII, Mohali, Punjab",
+                "Max Super Speciality Hospital, 1 Press Enclave Road, Saket, New Delhi",
+                "Manipal Hospital, 98 HAL Old Airport Road, Kodihalli, Bengaluru, Karnataka",
+                "Medanta - The Medicity, Sector 38, Gurugram, Haryana",
+                "Kokilaben Dhirubhai Ambani Hospital, Rao Saheb Patwardhan Marg, Andheri West, Mumbai",
+                "Apollo Health City, Jubilee Hills, Hyderabad, Telangana",
+                "Ruby Hall Clinic, 40 Sassoon Road, Shivaji Nagar, Pune, Maharashtra",
+                "Sir Ganga Ram Hospital, Rajinder Nagar, New Delhi",
+                "Apollo Speciality Hospitals, 320 Mount Road, Teynampet, Chennai, Tamil Nadu",
+                "Fortis Memorial Research Institute, Sector 44, Gurugram, Haryana",
+                "Manipal Hospital, Broadway, Salt Lake, Kolkata, West Bengal"
         };
 
         List<Doctor> doctors = new ArrayList<>();
@@ -165,7 +169,7 @@ public class DevDataSeeder implements CommandLineRunner {
             String lastName = lastNames[(i - 1) % lastNames.length];
             String fullName = "Dr. " + firstName + " " + lastName;
             String email = "dr." + firstName.toLowerCase() + "." + lastName.toLowerCase() + i + "@caresync.com";
-            String phone = String.format("+1 (555) %03d-%04d", 200 + i, 1000 + i);
+            String phone = String.format("+91 98200 %05d", 10000 + i);
 
             User user = User.builder()
                     .email(email)
@@ -181,14 +185,14 @@ public class DevDataSeeder implements CommandLineRunner {
             String qual = qualificationsList[(i - 1) % qualificationsList.length];
             String loc = locations[(i - 1) % locations.length];
             int exp = 4 + random.nextInt(22);
-            BigDecimal fee = BigDecimal.valueOf(75 + random.nextInt(18) * 10);
+            BigDecimal fee = BigDecimal.valueOf(400 + random.nextInt(12) * 100);
 
             Doctor doctor = Doctor.builder()
                     .user(user)
                     .specialization(spec)
                     .qualifications(qual)
                     .experienceYears(exp)
-                    .bio("Dedicated " + spec + " specialist with " + exp + " years of clinical experience providing compassionate, evidence-based care.")
+                    .bio("Dedicated " + spec + " specialist with " + exp + " years of clinical experience in leading Indian hospitals providing compassionate, evidence-based care.")
                     .location(loc)
                     .consultationFee(fee)
                     .build();
@@ -200,34 +204,37 @@ public class DevDataSeeder implements CommandLineRunner {
 
     private List<Patient> createPatients(String password) {
         String[] firstNames = {
-                "James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda",
-                "William", "Elizabeth", "David", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
-                "Thomas", "Sarah", "Charles", "Karen", "Christopher", "Nancy", "Daniel", "Lisa",
-                "Matthew", "Betty", "Anthony", "Margaret", "Mark", "Sandra", "Donald", "Ashley",
-                "Steven", "Kimberly", "Paul", "Emily", "Andrew", "Donna", "Joshua", "Michelle",
-                "Kenneth", "Carol", "Kevin", "Amanda", "Brian", "Melissa", "George", "Deborah",
-                "Edward", "Stephanie"
+                "Rahul", "Priya", "Amit", "Sneha", "Rohan", "Ananya", "Vikram", "Deepa",
+                "Karan", "Pooja", "Arun", "Divya", "Siddharth", "Neha", "Gaurav", "Kavita",
+                "Aditya", "Shweta", "Manish", "Sunita", "Naveen", "Swati", "Nikhil", "Aarti",
+                "Rajesh", "Meera", "Abhishek", "Ritu", "Alok", "Pallavi", "Sachin", "Jyoti",
+                "Prashant", "Bhavna", "Tarun", "Tanvi", "Sandeep", "Vandana", "Varun", "Simran",
+                "Deepak", "Ankita", "Hemant", "Radhika", "Mohit", "Preeti", "Sanjay", "Rekha",
+                "Vijay", "Anita"
         };
 
         String[] lastNames = {
-                "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-                "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
-                "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson",
-                "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker",
-                "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
-                "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell", "Carter", "Roberts"
+                "Sharma", "Patel", "Verma", "Gupta", "Singh", "Kumar", "Iyer", "Nair",
+                "Reddy", "Joshi", "Rao", "Deshmukh", "Kulkarni", "Mehta", "Bose", "Menon",
+                "Agarwal", "Mukherjee", "Malhotra", "Kapoor", "Mishra", "Pandey", "Choudhury", "Saxena",
+                "Sen", "Bhattacharya", "Das", "Chatterjee", "Tripathi", "Dubey", "Yadav", "Trivedi",
+                "Shukla", "Pandit", "Rathore", "Chauhan", "Thakur", "Goswami", "Bhatia", "Garg",
+                "Puri", "Sethi", "Bansal", "Goel", "Pillai", "Nambiar", "Shetty", "Hegde", "Bhat", "Ghosh"
         };
 
         String[] bloodGroups = {"A+", "O+", "B+", "AB+", "A-", "O-", "B-", "AB-"};
         String[] genders = {"MALE", "FEMALE", "OTHER"};
         String[] medicalHistories = {
                 "No prior chronic medical conditions. No known drug allergies.",
-                "History of mild seasonal allergic rhinitis. Penicillin allergy (hives).",
-                "Diagnosed with Type 2 Diabetes (2021). Controlled with diet and metformin.",
-                "Essential Hypertension managed with Lisinopril 10mg daily.",
-                "Mild persistent asthma. Uses Albuterol inhaler PRN.",
+                "History of mild seasonal allergic rhinitis. Penicillin allergy (urticaria).",
+                "Diagnosed with Type 2 Diabetes Mellitus (2021). Controlled with Metformin 500mg BD.",
+                "Essential Hypertension managed with Telmisartan 40mg once daily.",
+                "Mild persistent bronchial asthma. Uses Budecort inhaler PRN.",
                 "Prior appendectomy (2018). No active health complaints.",
-                "Gastroesophageal reflux disease (GERD). Sulfa drug allergy."
+                "Gastroesophageal reflux disease (GERD). Pantoprazole 40mg taken SOS.",
+                "Subclinical hypothyroidism. Managed with Thyronorm 25mcg daily.",
+                "Migraine with aura. Avoids triggers. Tab Naproxen SOS.",
+                "Borderline dyslipidemia. Managed with dietary modifications and exercise."
         };
 
         List<Patient> patients = new ArrayList<>();
@@ -239,7 +246,7 @@ public class DevDataSeeder implements CommandLineRunner {
             String lastName = lastNames[(i - 1) % lastNames.length];
             String fullName = firstName + " " + lastName;
             String email = "patient" + i + "@caresync.com";
-            String phone = String.format("+1 (555) %03d-%04d", 300 + (i % 700), 2000 + i);
+            String phone = String.format("+91 98%08d", 10000000 + i);
 
             User user = User.builder()
                     .email(email)

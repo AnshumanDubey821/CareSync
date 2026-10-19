@@ -101,8 +101,8 @@ const AdminDoctorManagementPage = () => {
                     <span>{doc.location || 'Location not specified'}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <DollarSign className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>Fee: <strong>${doc.consultationFee ?? 0}</strong></span>
+                    <span className="font-bold text-slate-500 w-3.5 text-center">₹</span>
+                    <span>Fee: <strong>₹{doc.consultationFee ? Number(doc.consultationFee).toLocaleString('en-IN') : 0}</strong></span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -154,7 +154,9 @@ const AdminDoctorManagementPage = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-0.5">
                   <span className="text-xs font-bold text-slate-500 uppercase">Consultation Fee</span>
-                  <p className="text-sm font-extrabold text-slate-900">${selectedDoctor.consultationFee ?? 0}</p>
+                  <p className="text-sm font-extrabold text-slate-900">
+                    ₹{selectedDoctor.consultationFee ? Number(selectedDoctor.consultationFee).toLocaleString('en-IN') : 0}
+                  </p>
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-0.5">
