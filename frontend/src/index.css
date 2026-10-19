@@ -4,30 +4,42 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-800 font-sans antialiased min-h-screen selection:bg-teal-100 selection:text-teal-900;
+    @apply bg-white text-slate-800 font-sans antialiased min-h-screen selection:bg-blue-100 selection:text-blue-900;
   }
 }
 
 @layer components {
   .badge-scheduled {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200;
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200;
   }
   .badge-confirmed {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200;
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200;
   }
   .badge-completed {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200;
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200;
   }
   .badge-cancelled {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200;
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200;
   }
 
   .stat-card {
-    @apply bg-white p-5 rounded-2xl border border-slate-100 shadow-card transition-all duration-200 hover:shadow-card-hover hover:border-teal-100;
+    @apply bg-white p-6 rounded-3xl border border-slate-100 shadow-card transition-all duration-300 hover:shadow-card-hover hover:border-blue-100;
   }
 
-  .glass-header {
-    @apply bg-white/90 backdrop-blur-md border-b border-slate-200/80;
+  .service-card {
+    background-color: rgba(244, 248, 252, 0.75);
+    @apply p-7 rounded-3xl border border-blue-50 transition-all duration-300 hover:bg-white hover:shadow-card-hover hover:border-blue-200;
+  }
+
+  .btn-doctorate-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm shadow-md shadow-primary-600/25 transition-all duration-200 hover:shadow-blue-glow;
+  }
+
+  .btn-doctorate-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-white hover:bg-slate-50 text-slate-800 font-bold text-sm border border-slate-200 transition-all duration-200 hover:border-primary-600 hover:text-primary-600;
+  }
+
+  .section-eyebrow {
+    @apply inline-flex items-center gap-1.5 text-xs font-bold tracking-widest text-primary-600 uppercase mb-2;
   }
 }
-

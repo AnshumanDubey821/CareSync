@@ -8,33 +8,45 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488',
-          700: '#0f766e',
-          800: '#115e59',
-          900: '#134e4a',
-          950: '#042f2e',
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#1e60f2', // Doctorate Royal Blue
+          700: '#1a56db',
+          800: '#1e40af',
+          900: '#1e3a8a',
+          950: '#0d213f', // Doctorate Deep Navy
+        },
+        navy: {
+          800: '#15294b',
+          900: '#0d213f',
+          950: '#081528',
+        },
+        ice: {
+          50: '#f9fbfd',
+          100: '#f4f8fc',
+          200: '#e8f1fc',
+          300: '#d5e5fa',
         },
         healthcare: {
+          blue: '#1e60f2',
+          navy: '#0d213f',
+          ice: '#f4f8fc',
+          emerald: '#10b981',
           teal: '#0d9488',
-          darkTeal: '#0f766e',
-          deepGreen: '#059669',
-          lightMint: '#ecfdf5',
-          coral: '#f43f5e',
-          softBlue: '#f0f9ff'
+          softBg: '#f8fafc'
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       boxShadow: {
-        'card': '0 2px 8px -2px rgba(0, 0, 0, 0.05), 0 4px 16px -2px rgba(0, 0, 0, 0.05)',
-        'card-hover': '0 10px 25px -5px rgba(13, 148, 136, 0.1), 0 8px 10px -6px rgba(13, 148, 136, 0.1)',
+        'card': '0 4px 20px -2px rgba(13, 33, 63, 0.05), 0 2px 6px -1px rgba(13, 33, 63, 0.03)',
+        'card-hover': '0 12px 30px -4px rgba(30, 96, 242, 0.12), 0 4px 10px -2px rgba(30, 96, 242, 0.06)',
+        'blue-glow': '0 8px 25px -4px rgba(30, 96, 242, 0.35)',
       }
     },
   },

@@ -1,12 +1,26 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Activity, User, LogOut, Calendar, ShieldCheck, Stethoscope, ChevronDown, MapPin, PhoneCall, Search } from 'lucide-react';
+import {
+  Activity,
+  User,
+  LogOut,
+  Calendar,
+  ShieldCheck,
+  Stethoscope,
+  ChevronDown,
+  PhoneCall,
+  Clock,
+  Menu,
+  X
+} from 'lucide-react';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout, role } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -20,121 +34,123 @@ const Navbar = () => {
     return '/';
   };
 
+  const navLinks = [
+    { label: 'Home', to: '/' },
+    { label: 'About', to: '/#about-section' },
+    { label: 'Services', to: '/#services-section' },
+    { label: 'Find Doctors', to: '/patient/doctors' },
+  ];
+
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-      {/* Top micro-bar for Indian Healthcare Helpline */}
-      <div className="bg-slate-900 text-slate-300 text-[11px] py-1 px-4 sm:px-8 flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5 text-teal-400 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
-            India's Leading Healthcare Network
-          </span>
-          <span className="hidden md:inline-block text-slate-400">•</span>
-          <span className="hidden md:flex items-center gap-1 text-slate-300">
-            <MapPin className="w-3 h-3 text-teal-400" />
-            Top Clinics in Bengaluru, Mumbai, Delhi NCR, Hyderabad & Pune
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <a href="tel:1800227379" className="flex items-center gap-1 hover:text-white transition-colors">
-            <PhoneCall className="w-3 h-3 text-emerald-400" />
-            <span>24x7 Helpline: <strong className="text-white">1800-CARE-SYNC</strong></span>
-          </a>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
-          {/* Logo Brand */}
+    <header className="sticky top-0 z-50 bg-white shadow-xs border-b border-slate-100">
+      {/* Top Micro-bar inspired by reference */}
+      <div className="hidden sm:block bg-white border-b border-slate-100/80 py-2 px-4 sm:px-8 text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-6">
-            <Link to="/" className="flex items-center gap-2.5 group">
-              <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white shadow-md shadow-teal-600/25 group-hover:bg-teal-700 transition-all">
-                <Activity className="w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-xl text-slate-900 tracking-tight leading-none">
-                    Care<span className="text-teal-600">Sync</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
-                    INDIA
-                  </span>
-                </div>
-                <span className="text-[10px] font-semibold text-slate-500 tracking-wider uppercase mt-0.5">
-                  Doctors & Appointment Scheduler
-                </span>
-              </div>
-            </Link>
-
-            {/* Quick search link */}
-            <div className="hidden lg:flex items-center">
-              <Link
-                to="/patient/doctors"
-                className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200/80 rounded-full transition-colors border border-slate-200/60"
-              >
-                <Search className="w-3.5 h-3.5 text-teal-600" />
-                <span>Search 50+ Top Indian Specialists</span>
-              </Link>
+            <a
+              href="tel:1800227379"
+              className="flex items-center gap-2 hover:text-primary-600 transition-colors font-medium"
+            >
+              <PhoneCall className="w-3.5 h-3.5 text-primary-600" />
+              <span>Call Us: <strong className="text-slate-800">1800-CARE-SYNC (+91)</strong></span>
+            </a>
+            <span className="text-slate-300">•</span>
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Mon - Sun: 8:00 AM - 10:00 PM (IST)</span>
             </div>
           </div>
 
-          {/* Navigation Items */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4 text-[11px] font-semibold text-slate-500">
+            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-primary-700 font-bold border border-blue-100">
+              National Health Network (India)
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Navigation Bar */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-20 items-center">
+          {/* Logo Brand: Doctorate-style healthcare emblem */}
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="w-11 h-11 rounded-2xl bg-primary-600 text-white flex items-center justify-center shadow-md shadow-primary-600/30 group-hover:scale-105 transition-transform">
+              <div className="relative">
+                <Activity className="w-6 h-6 stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-2xl text-navy-900 tracking-tight leading-none">
+                Care<span className="text-primary-600">Sync</span>
+              </span>
+              <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mt-1">
+                Healthcare & Doctor Scheduler
+              </span>
+            </div>
+          </Link>
+
+          {/* Center Navigation Links */}
+          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
+            {navLinks.map((item) => (
+              <Link
+                key={item.label}
+                to={item.to}
+                className={`transition-colors hover:text-primary-600 ${
+                  location.pathname === item.to ? 'text-primary-600 font-bold' : ''
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+
+            {isAuthenticated && (
+              <Link
+                to={getDashboardLink()}
+                className="transition-colors hover:text-primary-600 text-primary-700 font-bold"
+              >
+                Dashboard
+              </Link>
+            )}
+          </nav>
+
+          {/* Right Action / Profile Button */}
+          <div className="hidden sm:flex items-center gap-4">
             {isAuthenticated ? (
               <div className="relative">
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center gap-3 px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                  className="flex items-center gap-3 px-3.5 py-2 rounded-full hover:bg-slate-50 transition-colors border border-slate-200"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-sm shadow-inner">
+                  <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-800 flex items-center justify-center font-bold text-xs">
                     {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
                   </div>
-                  <div className="hidden md:flex flex-col text-left">
-                    <span className="text-sm font-semibold text-slate-800 leading-tight">
-                      {user?.fullName}
-                    </span>
-                    <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider">
-                      {role}
-                    </span>
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-navy-900 leading-tight">{user?.fullName}</p>
+                    <span className="text-[10px] font-bold text-primary-600 uppercase tracking-wider">{role}</span>
                   </div>
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                 </button>
 
-                {/* Dropdown Menu */}
                 {dropdownOpen && (
                   <div
-                    className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                    className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95"
                     onMouseLeave={() => setDropdownOpen(false)}
                   >
-                    <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
-                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Signed in as</p>
-                      <p className="text-sm font-semibold text-slate-900 truncate">{user?.fullName}</p>
-                      <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                    <div className="px-4 py-2 border-b border-slate-100">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase">Signed In</p>
+                      <p className="text-xs font-bold text-slate-800 truncate">{user?.email}</p>
                     </div>
-
                     <Link
                       to={getDashboardLink()}
                       onClick={() => setDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-teal-50/50 hover:text-teal-700 transition-colors"
+                      className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-ice-100 hover:text-primary-600"
                     >
-                      <Calendar className="w-4 h-4 text-teal-600" />
+                      <Calendar className="w-4 h-4 text-primary-600" />
                       <span>My Dashboard</span>
                     </Link>
-
-                    {role === 'PATIENT' && (
-                      <Link
-                        to="/patient/doctors"
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-teal-50/50 hover:text-teal-700 transition-colors"
-                      >
-                        <Stethoscope className="w-4 h-4 text-teal-600" />
-                        <span>Find Doctors</span>
-                      </Link>
-                    )}
-
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors border-t border-slate-100"
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 border-t border-slate-100"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Sign Out</span>
@@ -145,27 +161,86 @@ const Navbar = () => {
             ) : (
               <div className="flex items-center gap-3">
                 <Link
-                  to="/patient/doctors"
-                  className="hidden sm:inline-flex items-center text-sm font-medium text-slate-600 hover:text-teal-600 px-3 py-2 transition-colors"
-                >
-                  Find Doctors
-                </Link>
-                <Link
                   to="/login"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:text-teal-600 hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2.5 text-sm font-bold text-slate-700 hover:text-primary-600 transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
-                  to="/register"
-                  className="px-4.5 py-2 rounded-xl text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 shadow-md shadow-teal-600/20 transition-all hover:shadow-teal-600/30"
+                  to="/patient/doctors"
+                  className="px-6 py-3 rounded-full bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs uppercase tracking-wider shadow-md shadow-primary-600/30 transition-all hover:shadow-blue-glow"
                 >
                   Book Appointment
                 </Link>
               </div>
             )}
           </div>
+
+          {/* Mobile Menu Hamburger */}
+          <div className="md:hidden flex items-center gap-2">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-xl text-slate-600 hover:bg-slate-100"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden py-4 border-t border-slate-100 space-y-3 animate-in fade-in duration-150">
+            <div className="space-y-1">
+              {navLinks.map((item) => (
+                <Link
+                  key={item.label}
+                  to={item.to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {item.label}
+                </Link>
+              ))}
+              {isAuthenticated && (
+                <Link
+                  to={getDashboardLink()}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-xl text-sm font-bold text-primary-600 hover:bg-blue-50"
+                >
+                  Dashboard
+                </Link>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
+              {isAuthenticated ? (
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-2.5 rounded-xl bg-rose-50 text-rose-700 font-bold text-xs"
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full text-center py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    to="/patient/doctors"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full text-center py-3 rounded-full bg-primary-600 text-white font-bold text-xs uppercase tracking-wider shadow-md shadow-primary-600/30"
+                  >
+                    Book Appointment
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

@@ -90,33 +90,34 @@ const DoctorAvailabilityPage = () => {
     <div className="space-y-8">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <span className="section-eyebrow">Consultation Hours</span>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-navy-900 tracking-tight mt-0.5">
             Availability Schedule
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Publish your consultation hours so CareSync can dynamically generate booking time slots.
           </p>
         </div>
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="px-4.5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm rounded-xl shadow-md shadow-teal-600/20 transition-all flex items-center justify-center gap-2 shrink-0"
+          className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs sm:text-sm rounded-full shadow-md shadow-primary-600/20 transition-all flex items-center justify-center gap-2 shrink-0"
         >
-          <Plus className="w-4.5 h-4.5" />
+          <Plus className="w-4 h-4" />
           <span>Add Availability Slot</span>
         </button>
       </div>
 
       {/* Availabilities Grid */}
       {isLoading ? (
-        <div className="py-12 text-center text-slate-500 text-sm">Loading schedule...</div>
+        <div className="py-12 text-center text-slate-500 text-xs sm:text-sm animate-pulse">Loading schedule...</div>
       ) : availabilities.length === 0 ? (
-        <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-white space-y-3">
+        <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-white space-y-3">
           <Clock className="w-12 h-12 text-slate-300 mx-auto" />
-          <h3 className="text-base font-bold text-slate-800">No Availability Slots Published</h3>
-          <p className="text-sm text-slate-500 max-w-sm mx-auto">
+          <h3 className="text-base font-bold text-navy-900">No Availability Slots Published</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
             Click "Add Availability Slot" above to define your daily or weekly consultation hours.
           </p>
         </div>
@@ -125,16 +126,16 @@ const DoctorAvailabilityPage = () => {
           {availabilities.map((avail) => (
             <div
               key={avail.id}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all space-y-4 flex flex-col justify-between"
+              className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-card hover:shadow-card-hover hover:border-primary-200 transition-all space-y-4 flex flex-col justify-between"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="px-3 py-1 bg-teal-50 text-teal-800 border border-teal-200 text-xs font-extrabold rounded-full uppercase tracking-wider">
+                  <span className="px-3 py-1 bg-ice-100 text-primary-700 border border-primary-200 text-xs font-extrabold rounded-full uppercase tracking-wider">
                     {avail.availableDate ? `Date: ${avail.availableDate}` : `Weekly: ${avail.dayOfWeek}`}
                   </span>
                   <button
                     onClick={() => handleDeleteAvailability(avail.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors"
                     title="Delete Availability"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -142,9 +143,9 @@ const DoctorAvailabilityPage = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
-                    <Clock className="w-4.5 h-4.5 text-teal-600" />
-                    <span>{avail.startTime} - {avail.endTime}</span>
+                  <div className="flex items-center gap-2 text-navy-900 font-bold text-base">
+                    <Clock className="w-4 h-4 text-primary-600" />
+                    <span>{avail.startTime} - {avail.endTime} IST</span>
                   </div>
                   <p className="text-xs font-semibold text-slate-500">
                     Slot Duration: {avail.slotDurationMinutes} Minutes
@@ -153,8 +154,8 @@ const DoctorAvailabilityPage = () => {
               </div>
 
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Status: <strong className="text-emerald-600">Active</strong></span>
-                <span>ID #{avail.id}</span>
+                <span>Status: <strong className="text-emerald-600 font-bold">Active</strong></span>
+                <span>Ref #{avail.id}</span>
               </div>
             </div>
           ))}
@@ -163,10 +164,10 @@ const DoctorAvailabilityPage = () => {
 
       {/* Add Availability Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-navy-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-bold text-slate-900">Add Availability Schedule</h3>
+              <h3 className="text-lg font-bold text-navy-900">Add Availability Schedule</h3>
               <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
                 <X className="w-5 h-5" />
               </button>
@@ -174,12 +175,12 @@ const DoctorAvailabilityPage = () => {
 
             <form onSubmit={handleAddAvailabilitySubmit} className="space-y-4">
               {/* Type Switcher */}
-              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+              <div className="grid grid-cols-2 gap-2 p-1 bg-ice-100 rounded-full text-xs font-bold border border-slate-200">
                 <button
                   type="button"
                   onClick={() => setAvailabilityType('DATE')}
-                  className={`py-2 rounded-lg transition-all ${
-                    availabilityType === 'DATE' ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500'
+                  className={`py-2 rounded-full transition-all ${
+                    availabilityType === 'DATE' ? 'bg-primary-600 text-white shadow-xs' : 'text-slate-600 hover:text-navy-900'
                   }`}
                 >
                   Specific Date
@@ -187,8 +188,8 @@ const DoctorAvailabilityPage = () => {
                 <button
                   type="button"
                   onClick={() => setAvailabilityType('WEEKDAY')}
-                  className={`py-2 rounded-lg transition-all ${
-                    availabilityType === 'WEEKDAY' ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500'
+                  className={`py-2 rounded-full transition-all ${
+                    availabilityType === 'WEEKDAY' ? 'bg-primary-600 text-white shadow-xs' : 'text-slate-600 hover:text-navy-900'
                   }`}
                 >
                   Recurring Weekday
@@ -206,7 +207,7 @@ const DoctorAvailabilityPage = () => {
                     min={new Date().toISOString().split('T')[0]}
                     value={availableDate}
                     onChange={(e) => setAvailableDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-600/20"
                   />
                 </div>
               ) : (
@@ -217,7 +218,7 @@ const DoctorAvailabilityPage = () => {
                   <select
                     value={dayOfWeek}
                     onChange={(e) => setDayOfWeek(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20 font-medium"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-600/20 font-medium"
                   >
                     <option value="MONDAY">Monday</option>
                     <option value="TUESDAY">Tuesday</option>
@@ -277,14 +278,14 @@ const DoctorAvailabilityPage = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50"
+                  className="px-5 py-2.5 rounded-full border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-md shadow-teal-600/20 disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-full bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs shadow-md shadow-primary-600/20 disabled:opacity-50"
                 >
                   {isSubmitting ? 'Saving...' : 'Save Availability'}
                 </button>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { User, Mail, Lock, Phone, Stethoscope, AlertCircle, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, Phone, Stethoscope, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
@@ -16,10 +16,10 @@ const RegisterPage = () => {
     dateOfBirth: '',
     gender: 'Male',
     bloodGroup: 'O+',
-    specialization: 'General Practice',
-    qualifications: 'MBBS',
+    specialization: 'General Medicine',
+    qualifications: 'MBBS, MD',
     experienceYears: 5,
-    consultationFee: 100.00,
+    consultationFee: 600.00,
   });
 
   const [error, setError] = useState('');
@@ -55,45 +55,50 @@ const RegisterPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Create CareSync Account</h2>
-        <p className="text-sm text-slate-600">Join CareSync as a Patient or Healthcare Provider</p>
+      <div className="space-y-1.5">
+        <span className="section-eyebrow">Get Started</span>
+        <h2 className="text-2xl font-extrabold text-navy-900 tracking-tight">Create CareSync Account</h2>
+        <p className="text-xs text-slate-500">Join India's trusted doctor appointment & healthcare platform</p>
       </div>
 
       {/* Role Selector Tabs */}
-      <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+      <div className="grid grid-cols-2 gap-2 p-1.5 bg-ice-100 rounded-full border border-slate-200">
         <button
           type="button"
           onClick={() => setRole('PATIENT')}
-          className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-            role === 'PATIENT' ? 'bg-white text-teal-800 shadow-xs border border-teal-100' : 'text-slate-500 hover:text-slate-800'
+          className={`py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            role === 'PATIENT'
+              ? 'bg-primary-600 text-white shadow-sm'
+              : 'text-slate-600 hover:text-navy-900'
           }`}
         >
-          <User className="w-4 h-4" />
+          <User className="w-3.5 h-3.5" />
           <span>Patient</span>
         </button>
         <button
           type="button"
           onClick={() => setRole('DOCTOR')}
-          className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-            role === 'DOCTOR' ? 'bg-white text-teal-800 shadow-xs border border-teal-100' : 'text-slate-500 hover:text-slate-800'
+          className={`py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            role === 'DOCTOR'
+              ? 'bg-primary-600 text-white shadow-sm'
+              : 'text-slate-600 hover:text-navy-900'
           }`}
         >
-          <Stethoscope className="w-4 h-4" />
+          <Stethoscope className="w-3.5 h-3.5" />
           <span>Doctor</span>
         </button>
       </div>
 
       {error && (
-        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-rose-700 text-sm">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-700 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3.5">
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Full Name</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Full Name</label>
           <input
             type="text"
             name="fullName"
@@ -101,12 +106,12 @@ const RegisterPage = () => {
             value={formData.fullName}
             onChange={handleChange}
             placeholder={role === 'PATIENT' ? 'Rahul Sharma' : 'Dr. Rajesh Sharma'}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600/20 focus:border-teal-600 font-medium"
+            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 font-medium"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Email Address</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Email Address</label>
           <input
             type="email"
             name="email"
@@ -114,12 +119,12 @@ const RegisterPage = () => {
             value={formData.email}
             onChange={handleChange}
             placeholder="name@example.com"
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600/20 focus:border-teal-600 font-medium"
+            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 font-medium"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Password</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Password</label>
           <input
             type="password"
             name="password"
@@ -128,28 +133,28 @@ const RegisterPage = () => {
             value={formData.password}
             onChange={handleChange}
             placeholder="At least 6 characters"
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600/20 focus:border-teal-600 font-medium"
+            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 font-medium"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Mobile Number (India)</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Mobile Number (India)</label>
           <input
             type="tel"
             name="phoneNumber"
             value={formData.phoneNumber}
             onChange={handleChange}
             placeholder="+91 98765 43210"
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600/20 focus:border-teal-600 font-medium"
+            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 font-medium"
           />
         </div>
 
         {/* Doctor Specific Fields */}
         {role === 'DOCTOR' && (
-          <div className="space-y-4 pt-2 border-t border-slate-200">
+          <div className="space-y-3 pt-2 border-t border-slate-200">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Specialization</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Specialization</label>
                 <input
                   type="text"
                   name="specialization"
@@ -157,11 +162,11 @@ const RegisterPage = () => {
                   value={formData.specialization}
                   onChange={handleChange}
                   placeholder="Cardiology / General Medicine"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-primary-600/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Qualifications</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Qualifications</label>
                 <input
                   type="text"
                   name="qualifications"
@@ -169,32 +174,32 @@ const RegisterPage = () => {
                   value={formData.qualifications}
                   onChange={handleChange}
                   placeholder="MBBS, MD, DNB"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-primary-600/20"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Experience (Yrs)</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Experience (Yrs)</label>
                 <input
                   type="number"
                   name="experienceYears"
                   value={formData.experienceYears}
                   onChange={handleChange}
                   placeholder="10"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-primary-600/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Consultation Fee (₹ INR)</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Consultation Fee (₹)</label>
                 <input
                   type="number"
                   name="consultationFee"
                   value={formData.consultationFee}
                   onChange={handleChange}
                   placeholder="600"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-primary-600/20"
                 />
               </div>
             </div>
@@ -204,10 +209,10 @@ const RegisterPage = () => {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-md shadow-teal-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
+          className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-full shadow-md shadow-primary-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm mt-4"
         >
           {isLoading ? (
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
           ) : (
             <>
               <span>Create Account</span>
@@ -217,10 +222,10 @@ const RegisterPage = () => {
         </button>
       </form>
 
-      <div className="text-center pt-4 border-t border-slate-100">
-        <p className="text-sm text-slate-600">
+      <div className="text-center pt-3 border-t border-slate-100">
+        <p className="text-xs text-slate-600">
           Already have an account?{' '}
-          <Link to="/login" className="font-bold text-teal-600 hover:text-teal-700">
+          <Link to="/login" className="font-bold text-primary-600 hover:text-primary-700">
             Sign in
           </Link>
         </p>
