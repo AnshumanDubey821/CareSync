@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { doctorService } from '../services/doctorService';
 import { placeService } from '../services/placeService';
+import GooglePlacesMap from '../components/GooglePlacesMap';
 import {
   Search,
   MapPin,
@@ -20,15 +21,27 @@ import {
   ExternalLink,
   AlertCircle,
   Info,
-  ShieldCheck
+  ShieldCheck,
+  Map as MapIcon,
+  Eye,
+  EyeOff,
+  Navigation
 } from 'lucide-react';
 
 const DoctorSearchPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const mapSectionRef = useRef(null);
+  const doctorResultsRef = useRef(null);
 
   // Tab State
   const [activeTab, setActiveTab] = useState('doctors'); // 'doctors' | 'places'
+
+  // Map visibility toggle on Doctors tab
+  const [showDoctorsMap, setShowDoctorsMap] = useState(true);
+
+  // Selected Place ID for map synchronization
+  const [selectedPlaceId, setSelectedPlaceId] = useState(null);
 
   // Doctor Search State
   const [name, setName] = useState(searchParams.get('name') || '');
@@ -77,6 +90,8 @@ const DoctorSearchPage = () => {
   useEffect(() => {
     fetchDoctors();
     checkPlacesStatus();
+    // Pre-populate places on initial mount so the map renders with live clinic markers
+    fetchNearbyPlaces(location || 'Bengaluru', 'Hospital');
   }, []);
 
   const checkPlacesStatus = async () => {
@@ -111,15 +126,43 @@ const DoctorSearchPage = () => {
     }
   };
 
+  const fetchNearbyPlaces = async (city = 'Bengaluru', query = 'Hospital') => {
+    setIsPlacesLoading(true);
+    setPlacesError(null);
+    try {
+      const res = await placeService.searchPlaces({
+        query: query || 'Hospital',
+        city: city || undefined,
+        placeType: 'hospital',
+        pageSize: 10
+      });
+      setPlaces(res.places || []);
+      if (res.attribution) setPlacesAttribution(res.attribution);
+    } catch (err) {
+      console.warn('Could not load live healthcare places:', err);
+    } finally {
+      setIsPlacesLoading(false);
+    }
+  };
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     fetchDoctors();
+    if (location) {
+      fetchNearbyPlaces(location, 'Hospital');
+    }
   };
 
   const handleCitySelect = (city) => {
     const newLoc = location === city ? '' : city;
     setLocation(newLoc);
     fetchDoctors({ location: newLoc });
+    if (newLoc) {
+      setPlacesCity(newLoc);
+      fetchNearbyPlaces(newLoc, 'Hospital');
+    } else {
+      fetchNearbyPlaces('Bengaluru', 'Hospital');
+    }
   };
 
   const handleResetFilters = () => {
@@ -127,9 +170,10 @@ const DoctorSearchPage = () => {
     setSpecialization('');
     setLocation('');
     fetchDoctors({ name: '', specialization: '', location: '' });
+    fetchNearbyPlaces('Bengaluru', 'Hospital');
   };
 
-  // Google Places Search
+  // Google Places Search Form handler
   const handlePlacesSearch = async (e) => {
     if (e) e.preventDefault();
     if (!placesQuery.trim()) return;
@@ -169,6 +213,24 @@ const DoctorSearchPage = () => {
     setLocation(facilityName);
     setActiveTab('doctors');
     fetchDoctors({ location: facilityName });
+
+    // Smooth scroll down to doctor results
+    setTimeout(() => {
+      if (doctorResultsRef.current) {
+        doctorResultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  const handleSelectPlaceOnMap = (place) => {
+    setSelectedPlaceId(place.id);
+  };
+
+  const handleScrollToMapAndSelect = (placeId) => {
+    setSelectedPlaceId(placeId);
+    if (mapSectionRef.current) {
+      mapSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   };
 
   return (
@@ -307,16 +369,63 @@ const DoctorSearchPage = () => {
                 ))}
               </div>
 
-              {(name || specialization || location) && (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={handleResetFilters}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-3 py-1 rounded-full border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors"
+                  type="button"
+                  onClick={() => setShowDoctorsMap(!showDoctorsMap)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-navy-900 px-3.5 py-1 rounded-full border border-primary-200 bg-primary-50/70 hover:bg-primary-100 transition-colors shadow-2xs"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset All Filters</span>
+                  <MapIcon className="w-3.5 h-3.5 text-primary-600" />
+                  <span>{showDoctorsMap ? 'Hide Map View' : 'Show Interactive Map'}</span>
                 </button>
-              )}
+
+                {(name || specialization || location) && (
+                  <button
+                    onClick={handleResetFilters}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-3 py-1 rounded-full border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Interactive Google Map on Doctors Tab */}
+          {showDoctorsMap && (
+            <div ref={mapSectionRef} className="space-y-2 animate-in fade-in duration-300">
+              <GooglePlacesMap
+                places={places}
+                selectedPlaceId={selectedPlaceId}
+                onSelectPlace={handleSelectPlaceOnMap}
+                onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
+                activeCity={location || 'Bengaluru'}
+                isLoading={isPlacesLoading}
+                error={placesError}
+                height="h-[380px] sm:h-[420px]"
+                title="Partner Hospitals & Clinics (Interactive Map)"
+                subtitle="Click any clinic pin to inspect real coordinates and filter practicing doctors"
+              />
+            </div>
+          )}
+
+          {/* Doctor Cards Section Header */}
+          <div ref={doctorResultsRef} className="flex items-center justify-between pt-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-extrabold text-navy-900 tracking-tight">
+                Available Specialist Doctors
+              </h2>
+              <span className="text-xs text-slate-500 font-medium">
+                ({doctors.length} doctors found)
+              </span>
+            </div>
+            {location && (
+              <span className="text-xs text-primary-600 font-semibold bg-primary-50 px-3 py-1 rounded-full border border-primary-200 flex items-center gap-1">
+                <MapPin className="w-3 h-3" />
+                Filtered by: {location}
+              </span>
+            )}
           </div>
 
           {/* Doctor Cards Grid */}
@@ -535,6 +644,9 @@ const DoctorSearchPage = () => {
                   onClick={() => {
                     const newCity = placesCity === city ? '' : city;
                     setPlacesCity(newCity);
+                    if (newCity) {
+                      handlePlacesSearch();
+                    }
                   }}
                   className={`text-xs px-3.5 py-1 rounded-full border transition-all ${
                     placesCity === city
@@ -545,6 +657,34 @@ const DoctorSearchPage = () => {
                   {city}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Interactive Google Map on Places Tab */}
+          <div ref={mapSectionRef} className="space-y-2">
+            <GooglePlacesMap
+              places={places}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={handleSelectPlaceOnMap}
+              onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
+              activeCity={placesCity || 'Bengaluru'}
+              isLoading={isPlacesLoading}
+              error={placesError}
+              height="h-[440px] sm:h-[480px]"
+              title="Verified Medical Facilities on Google Maps"
+              subtitle="Explore hospital coordinates, ratings, and Google Maps navigation links"
+            />
+          </div>
+
+          {/* Places Results Header */}
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-extrabold text-navy-900 tracking-tight">
+                Accredited Medical Centers &amp; Clinics
+              </h2>
+              <span className="text-xs text-slate-500 font-medium">
+                ({places.length} locations)
+              </span>
             </div>
           </div>
 
@@ -588,11 +728,16 @@ const DoctorSearchPage = () => {
                 const photoUrl = place.photoUrls && place.photoUrls.length > 0
                   ? place.photoUrls[0]
                   : null;
+                const isSelected = selectedPlaceId === place.id;
 
                 return (
                   <div
                     key={place.id}
-                    className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between group"
+                    className={`bg-white rounded-3xl border overflow-hidden shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between group ${
+                      isSelected
+                        ? 'border-primary-500 ring-2 ring-primary-500/20'
+                        : 'border-slate-200/90'
+                    }`}
                   >
                     <div>
                       {/* Facility Photo Header or Fallback */}
@@ -643,9 +788,16 @@ const DoctorSearchPage = () => {
                           <h3 className="font-extrabold text-navy-900 text-base leading-snug group-hover:text-primary-600 transition-colors">
                             {place.displayName}
                           </h3>
-                          <span className="inline-block px-2 py-0.5 mt-1 rounded text-[10px] font-bold bg-ice-100 text-primary-700 uppercase">
-                            {place.primaryType ? place.primaryType.replace(/_/g, ' ') : 'Hospital'}
-                          </span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-ice-100 text-primary-700 uppercase">
+                              {place.primaryType ? place.primaryType.replace(/_/g, ' ') : 'Hospital'}
+                            </span>
+                            {typeof place.latitude === 'number' && typeof place.longitude === 'number' && (
+                              <span className="text-[10px] font-mono text-slate-400">
+                                {place.latitude.toFixed(3)}°, {place.longitude.toFixed(3)}°
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="space-y-1.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
@@ -659,19 +811,30 @@ const DoctorSearchPage = () => {
 
                     {/* Actions Footer */}
                     <div className="px-5 pb-5 pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
-                      {place.googleMapsUri ? (
-                        <a
-                          href={place.googleMapsUri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-primary-600 transition-colors"
+                      <div className="flex items-center gap-2">
+                        {place.googleMapsUri ? (
+                          <a
+                            href={place.googleMapsUri}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-primary-600 transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>Google Maps</span>
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">CareSync Network</span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleScrollToMapAndSelect(place.id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-800 transition-colors"
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>Google Maps</span>
-                        </a>
-                      ) : (
-                        <span className="text-[11px] text-slate-400">Accredited Network</span>
-                      )}
+                          <MapIcon className="w-3.5 h-3.5" />
+                          <span>Pin on Map</span>
+                        </button>
+                      </div>
 
                       <button
                         type="button"
