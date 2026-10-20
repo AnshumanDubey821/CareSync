@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Component } from 'react';
 import {
   MapPin,
   Building2,
@@ -10,10 +10,7 @@ import {
   Compass,
   AlertTriangle,
   Info,
-  Maximize2,
   Layers,
-  Sparkles,
-  ChevronRight,
   ShieldCheck
 } from 'lucide-react';
 
@@ -99,6 +96,41 @@ const MAP_STYLES = [
   }
 ];
 
+/**
+ * Error boundary component to prevent map rendering issues from breaking the entire page
+ */
+export class MapErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('MapErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-card text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-bold text-navy-900">Healthcare Map View Temporarily Unavailable</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            The interactive map canvas encountered a browser initialization issue. You can still browse and select doctors and verified clinics normally below.
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const GooglePlacesMap = ({
   places = [],
   selectedPlaceId = null,
@@ -118,6 +150,7 @@ const GooglePlacesMap = ({
 
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [scriptLoadError, setScriptLoadError] = useState(null);
+  const [initError, setInitError] = useState(null);
   const [authError, setAuthError] = useState(false);
   const [activePlace, setActivePlace] = useState(null);
   const [mapType, setMapType] = useState('roadmap'); // 'roadmap' | 'satellite'
@@ -135,38 +168,56 @@ const GooglePlacesMap = ({
   // Load Google Maps JavaScript API script dynamically
   useEffect(() => {
     if (!apiKey) {
-      // No browser key configured
       return;
     }
 
-    // Register global auth failure listener if not already attached
+    // Register global auth failure listener
     window.gm_authFailure = () => {
       console.warn('Google Maps API authentication failed: Check API key restrictions or billing.');
       setAuthError(true);
     };
 
-    if (window.google?.maps) {
+    // If Google Maps API is already fully available on window
+    if (window.google?.maps?.Map) {
       setIsScriptLoaded(true);
       return;
     }
 
     const existingScript = document.getElementById('google-maps-js-sdk');
     if (existingScript) {
-      existingScript.addEventListener('load', () => setIsScriptLoaded(true));
-      existingScript.addEventListener('error', () =>
-        setScriptLoadError('Failed to load Google Maps SDK')
-      );
+      if (window.google?.maps?.Map) {
+        setIsScriptLoaded(true);
+      } else {
+        existingScript.addEventListener('load', () => {
+          if (window.google?.maps?.Map) setIsScriptLoaded(true);
+        });
+        existingScript.addEventListener('error', () =>
+          setScriptLoadError('Failed to load Google Maps SDK')
+        );
+      }
       return;
     }
 
     const script = document.createElement('script');
     script.id = 'google-maps-js-sdk';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&loading=async`;
+    // Load standard Google Maps JavaScript API without &loading=async to ensure synchronous namespace population
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
     script.async = true;
     script.defer = true;
 
     script.onload = () => {
-      setIsScriptLoaded(true);
+      if (window.google?.maps?.Map) {
+        setIsScriptLoaded(true);
+      } else {
+        // Poll briefly in case of slight delay
+        const checkTimer = setInterval(() => {
+          if (window.google?.maps?.Map) {
+            clearInterval(checkTimer);
+            setIsScriptLoaded(true);
+          }
+        }, 50);
+        setTimeout(() => clearInterval(checkTimer), 3000);
+      }
     };
 
     script.onerror = (e) => {
@@ -183,131 +234,160 @@ const GooglePlacesMap = ({
 
   // Initialize Map Instance
   useEffect(() => {
-    if (!isScriptLoaded || !mapContainerRef.current || !window.google?.maps || authError) {
+    // Ensure Google Maps API Map class is strictly defined before running effect
+    if (!isScriptLoaded || !mapContainerRef.current || !window.google?.maps?.Map || authError) {
       return;
     }
 
     if (!mapInstanceRef.current) {
-      const cityKey = activeCity || 'Bengaluru';
-      const initialCenter = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
+      try {
+        const cityKey = activeCity || 'Bengaluru';
+        const initialCenter = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
 
-      const map = new window.google.maps.Map(mapContainerRef.current, {
-        center: { lat: initialCenter.lat, lng: initialCenter.lng },
-        zoom: initialCenter.zoom,
-        styles: MAP_STYLES,
-        mapTypeId: mapType,
-        mapTypeControl: false, // We use custom toggle button
-        streetViewControl: true,
-        streetViewControlOptions: {
-          position: window.google.maps.ControlPosition.RIGHT_BOTTOM
-        },
-        zoomControl: true,
-        zoomControlOptions: {
-          position: window.google.maps.ControlPosition.RIGHT_BOTTOM
-        },
-        fullscreenControl: true,
-        fullscreenControlOptions: {
-          position: window.google.maps.ControlPosition.RIGHT_TOP
+        // Safely omit control-position overrides so Google Maps uses its standard, reliable default positions
+        const map = new window.google.maps.Map(mapContainerRef.current, {
+          center: { lat: initialCenter.lat, lng: initialCenter.lng },
+          zoom: initialCenter.zoom,
+          styles: MAP_STYLES,
+          mapTypeId: mapType,
+          mapTypeControl: false, // We provide a custom styled button
+          streetViewControl: true,
+          zoomControl: true,
+          fullscreenControl: true
+        });
+
+        mapInstanceRef.current = map;
+        if (window.google?.maps?.InfoWindow) {
+          infoWindowRef.current = new window.google.maps.InfoWindow();
         }
-      });
 
-      mapInstanceRef.current = map;
-      infoWindowRef.current = new window.google.maps.InfoWindow();
-
-      // Close floating card / info window when clicking elsewhere on map canvas
-      map.addListener('click', () => {
-        setActivePlace(null);
-        if (infoWindowRef.current) infoWindowRef.current.close();
-      });
+        // Close floating card / info window when clicking elsewhere on map canvas
+        map.addListener('click', () => {
+          setActivePlace(null);
+          if (infoWindowRef.current) infoWindowRef.current.close();
+        });
+      } catch (err) {
+        console.error('Google Maps initialization failed:', err);
+        setInitError(err.message || 'Failed to initialize map canvas');
+      }
     }
-  }, [isScriptLoaded, authError]);
+  }, [isScriptLoaded, authError, activeCity, mapType]);
 
   // Handle Map Type Toggle (Roadmap vs Satellite)
   const toggleMapType = () => {
     if (!mapInstanceRef.current) return;
-    const nextType = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
-    mapInstanceRef.current.setMapTypeId(nextType);
-    setMapType(nextType);
+    try {
+      const nextType = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
+      mapInstanceRef.current.setMapTypeId(nextType);
+      setMapType(nextType);
+    } catch (e) {
+      console.warn('Could not toggle map type:', e);
+    }
   };
 
   // Center map on specified coordinates
   const handleRecenter = useCallback(() => {
     if (!mapInstanceRef.current || !window.google?.maps) return;
-    const cityKey = activeCity || 'Bengaluru';
-    const coords = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
-    mapInstanceRef.current.panTo({ lat: coords.lat, lng: coords.lng });
-    mapInstanceRef.current.setZoom(coords.zoom);
+    try {
+      const cityKey = activeCity || 'Bengaluru';
+      const coords = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
+      mapInstanceRef.current.panTo({ lat: coords.lat, lng: coords.lng });
+      mapInstanceRef.current.setZoom(coords.zoom);
+    } catch (e) {
+      console.warn('Could not recenter map:', e);
+    }
   }, [activeCity]);
 
   // Render & Update Markers when Places change
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.google?.maps || !isScriptLoaded || authError) {
+    if (
+      !mapInstanceRef.current ||
+      !window.google?.maps?.Marker ||
+      !window.google?.maps?.LatLngBounds ||
+      !isScriptLoaded ||
+      authError
+    ) {
       return;
     }
 
-    const map = mapInstanceRef.current;
+    try {
+      const map = mapInstanceRef.current;
 
-    // Clear existing markers
-    markersRef.current.forEach((m) => m.setMap(null));
-    markersRef.current = [];
-
-    // Filter places that have genuine latitude and longitude
-    const validPlaces = places.filter(
-      (p) =>
-        typeof p.latitude === 'number' &&
-        typeof p.longitude === 'number' &&
-        !isNaN(p.latitude) &&
-        !isNaN(p.longitude)
-    );
-
-    if (validPlaces.length === 0) {
-      // If city is specified, center on known city coordinates
-      if (activeCity && CITY_COORDINATES[activeCity]) {
-        const c = CITY_COORDINATES[activeCity];
-        map.panTo({ lat: c.lat, lng: c.lng });
-        map.setZoom(c.zoom);
-      }
-      return;
-    }
-
-    const bounds = new window.google.maps.LatLngBounds();
-
-    validPlaces.forEach((place) => {
-      const position = { lat: place.latitude, lng: place.longitude };
-      const isSelected = activePlace?.id === place.id;
-
-      const marker = new window.google.maps.Marker({
-        position,
-        map,
-        title: place.displayName,
-        icon: createMarkerIcon(isSelected),
-        zIndex: isSelected ? 999 : 10,
-        animation: isSelected ? window.google.maps.Animation.BOUNCE : undefined
+      // Clear existing markers safely
+      markersRef.current.forEach((m) => {
+        if (m && typeof m.setMap === 'function') {
+          m.setMap(null);
+        }
       });
+      markersRef.current = [];
 
-      if (isSelected) {
-        setTimeout(() => marker.setAnimation(null), 1400);
+      // Filter places that have genuine numeric latitude and longitude
+      const validPlaces = places.filter(
+        (p) =>
+          typeof p.latitude === 'number' &&
+          typeof p.longitude === 'number' &&
+          !isNaN(p.latitude) &&
+          !isNaN(p.longitude)
+      );
+
+      if (validPlaces.length === 0) {
+        // If city is specified, center on known city coordinates
+        if (activeCity && CITY_COORDINATES[activeCity]) {
+          const c = CITY_COORDINATES[activeCity];
+          map.panTo({ lat: c.lat, lng: c.lng });
+          map.setZoom(c.zoom);
+        }
+        return;
       }
 
-      // Marker Click Event
-      marker.addListener('click', () => {
-        setActivePlace(place);
-        onSelectPlace(place);
+      const bounds = new window.google.maps.LatLngBounds();
 
-        map.panTo(position);
-        map.setZoom(Math.max(map.getZoom(), 15));
+      validPlaces.forEach((place) => {
+        const position = { lat: place.latitude, lng: place.longitude };
+        const isSelected = activePlace?.id === place.id;
+
+        const marker = new window.google.maps.Marker({
+          position,
+          map,
+          title: place.displayName,
+          icon: createMarkerIcon(isSelected),
+          zIndex: isSelected ? 999 : 10,
+          animation:
+            isSelected && window.google?.maps?.Animation?.BOUNCE
+              ? window.google.maps.Animation.BOUNCE
+              : undefined
+        });
+
+        if (isSelected) {
+          setTimeout(() => {
+            if (marker && typeof marker.setAnimation === 'function') {
+              marker.setAnimation(null);
+            }
+          }, 1400);
+        }
+
+        // Marker Click Event
+        marker.addListener('click', () => {
+          setActivePlace(place);
+          onSelectPlace(place);
+
+          map.panTo(position);
+          map.setZoom(Math.max(map.getZoom(), 15));
+        });
+
+        markersRef.current.push(marker);
+        bounds.extend(position);
       });
 
-      markersRef.current.push(marker);
-      bounds.extend(position);
-    });
-
-    // Auto-fit bounds to display all valid markers
-    if (validPlaces.length === 1) {
-      map.setCenter({ lat: validPlaces[0].latitude, lng: validPlaces[0].longitude });
-      map.setZoom(15);
-    } else if (validPlaces.length > 1) {
-      map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+      // Auto-fit bounds to display all valid markers
+      if (validPlaces.length === 1) {
+        map.setCenter({ lat: validPlaces[0].latitude, lng: validPlaces[0].longitude });
+        map.setZoom(15);
+      } else if (validPlaces.length > 1) {
+        map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+      }
+    } catch (err) {
+      console.error('Error updating map markers:', err);
     }
   }, [places, activePlace, isScriptLoaded, authError, activeCity, onSelectPlace]);
 
@@ -342,7 +422,7 @@ const GooglePlacesMap = ({
 
         {/* Map Control Actions */}
         <div className="flex items-center gap-2">
-          {apiKey && !authError && isScriptLoaded && (
+          {apiKey && !authError && !initError && isScriptLoaded && (
             <>
               <button
                 type="button"
@@ -482,17 +562,23 @@ const GooglePlacesMap = ({
           </div>
         )}
 
-        {/* Case 3: Script Load Error */}
-        {apiKey && !authError && scriptLoadError && (
-          <div className="h-full w-full flex flex-col items-center justify-center p-6 text-center space-y-2">
-            <AlertTriangle className="w-8 h-8 text-amber-500" />
-            <h3 className="text-sm font-bold text-navy-900">Map Loading Error</h3>
-            <p className="text-xs text-slate-500 max-w-sm">{scriptLoadError}</p>
+        {/* Case 3: Script Load Error or Init Error */}
+        {apiKey && !authError && (scriptLoadError || initError) && (
+          <div className="h-full w-full flex flex-col items-center justify-center p-6 text-center space-y-3 bg-amber-50/40">
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center border border-amber-200">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-navy-900">Map Canvas Notice</h3>
+              <p className="text-xs text-slate-600 max-w-sm mt-1">
+                {scriptLoadError || initError || 'Google Maps canvas could not be initialized in this browser.'}
+              </p>
+            </div>
           </div>
         )}
 
         {/* Case 4: Google Maps Canvas Div */}
-        {apiKey && !authError && (
+        {apiKey && !authError && !initError && (
           <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: '100%' }} />
         )}
 

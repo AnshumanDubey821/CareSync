@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { doctorService } from '../services/doctorService';
 import { placeService } from '../services/placeService';
-import GooglePlacesMap from '../components/GooglePlacesMap';
+import GooglePlacesMap, { MapErrorBoundary } from '../components/GooglePlacesMap';
 import {
   Search,
   MapPin,
@@ -395,18 +395,20 @@ const DoctorSearchPage = () => {
           {/* Interactive Google Map on Doctors Tab */}
           {showDoctorsMap && (
             <div ref={mapSectionRef} className="space-y-2 animate-in fade-in duration-300">
-              <GooglePlacesMap
-                places={places}
-                selectedPlaceId={selectedPlaceId}
-                onSelectPlace={handleSelectPlaceOnMap}
-                onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
-                activeCity={location || 'Bengaluru'}
-                isLoading={isPlacesLoading}
-                error={placesError}
-                height="h-[380px] sm:h-[420px]"
-                title="Partner Hospitals & Clinics (Interactive Map)"
-                subtitle="Click any clinic pin to inspect real coordinates and filter practicing doctors"
-              />
+              <MapErrorBoundary>
+                <GooglePlacesMap
+                  places={places}
+                  selectedPlaceId={selectedPlaceId}
+                  onSelectPlace={handleSelectPlaceOnMap}
+                  onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
+                  activeCity={location || 'Bengaluru'}
+                  isLoading={isPlacesLoading}
+                  error={placesError}
+                  height="h-[380px] sm:h-[420px]"
+                  title="Partner Hospitals & Clinics (Interactive Map)"
+                  subtitle="Click any clinic pin to inspect real coordinates and filter practicing doctors"
+                />
+              </MapErrorBoundary>
             </div>
           )}
 
@@ -662,18 +664,20 @@ const DoctorSearchPage = () => {
 
           {/* Interactive Google Map on Places Tab */}
           <div ref={mapSectionRef} className="space-y-2">
-            <GooglePlacesMap
-              places={places}
-              selectedPlaceId={selectedPlaceId}
-              onSelectPlace={handleSelectPlaceOnMap}
-              onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
-              activeCity={placesCity || 'Bengaluru'}
-              isLoading={isPlacesLoading}
-              error={placesError}
-              height="h-[440px] sm:h-[480px]"
-              title="Verified Medical Facilities on Google Maps"
-              subtitle="Explore hospital coordinates, ratings, and Google Maps navigation links"
-            />
+            <MapErrorBoundary>
+              <GooglePlacesMap
+                places={places}
+                selectedPlaceId={selectedPlaceId}
+                onSelectPlace={handleSelectPlaceOnMap}
+                onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
+                activeCity={placesCity || 'Bengaluru'}
+                isLoading={isPlacesLoading}
+                error={placesError}
+                height="h-[440px] sm:h-[480px]"
+                title="Verified Medical Facilities on Google Maps"
+                subtitle="Explore hospital coordinates, ratings, and Google Maps navigation links"
+              />
+            </MapErrorBoundary>
           </div>
 
           {/* Places Results Header */}
