@@ -135,7 +135,54 @@ public class DoctorService {
         return mapToDoctorResponse(updated);
     }
 
+    record HospitalCoord(String name, double lat, double lng) {}
+
+    private HospitalCoord resolveHospitalCoordinate(String location) {
+        if (location == null) return null;
+        String lower = location.toLowerCase();
+
+        if (lower.contains("apollo") && (lower.contains("bannerghatta") || lower.contains("bengaluru") || lower.contains("indiranagar"))) {
+            return new HospitalCoord("Apollo Hospitals, Bannerghatta Road", 12.8962, 77.5986);
+        }
+        if (lower.contains("manipal") && (lower.contains("airport") || lower.contains("bengaluru") || lower.contains("kodihalli"))) {
+            return new HospitalCoord("Manipal Hospital, Old Airport Road", 12.9585, 77.6483);
+        }
+        if (lower.contains("max") && (lower.contains("saket") || lower.contains("enclave") || lower.contains("delhi"))) {
+            return new HospitalCoord("Max Super Speciality Hospital, Saket", 28.5280, 77.2114);
+        }
+        if (lower.contains("ganga ram")) {
+            return new HospitalCoord("Sir Ganga Ram Hospital, Rajinder Nagar", 28.6389, 77.1897);
+        }
+        if (lower.contains("fortis") && (lower.contains("sector 44") || lower.contains("gurugram") || lower.contains("memorial"))) {
+            return new HospitalCoord("Fortis Memorial Research Institute, Gurugram", 28.4554, 77.0722);
+        }
+        if (lower.contains("medanta")) {
+            return new HospitalCoord("Medanta - The Medicity, Gurugram", 28.4393, 77.0427);
+        }
+        if (lower.contains("kokilaben")) {
+            return new HospitalCoord("Kokilaben Dhirubhai Ambani Hospital, Andheri West", 19.1312, 72.8252);
+        }
+        if (lower.contains("apollo") && (lower.contains("jubilee") || lower.contains("hyderabad"))) {
+            return new HospitalCoord("Apollo Health City, Jubilee Hills", 17.4193, 78.4116);
+        }
+        if (lower.contains("apollo") && (lower.contains("teynampet") || lower.contains("chennai") || lower.contains("mount"))) {
+            return new HospitalCoord("Apollo Speciality Hospitals, Chennai", 13.0368, 80.2483);
+        }
+        if (lower.contains("ruby hall")) {
+            return new HospitalCoord("Ruby Hall Clinic, Pune", 18.5332, 73.8767);
+        }
+        if (lower.contains("manipal") && (lower.contains("salt lake") || lower.contains("kolkata") || lower.contains("broadway"))) {
+            return new HospitalCoord("Manipal Hospital, Salt Lake", 22.5701, 88.4068);
+        }
+        if (lower.contains("fortis") && (lower.contains("mohali") || lower.contains("sector 62") || lower.contains("punjab"))) {
+            return new HospitalCoord("Fortis Hospital, Mohali", 30.7046, 76.7179);
+        }
+
+        return null;
+    }
+
     public DoctorResponse mapToDoctorResponse(Doctor doctor) {
+        HospitalCoord coord = resolveHospitalCoordinate(doctor.getLocation());
         return DoctorResponse.builder()
                 .id(doctor.getId())
                 .userId(doctor.getUser().getId())
@@ -148,6 +195,9 @@ public class DoctorService {
                 .bio(doctor.getBio())
                 .location(doctor.getLocation())
                 .consultationFee(doctor.getConsultationFee())
+                .hospitalName(coord != null ? coord.name() : null)
+                .latitude(coord != null ? coord.lat() : null)
+                .longitude(coord != null ? coord.lng() : null)
                 .build();
     }
 }

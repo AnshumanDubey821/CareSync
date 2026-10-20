@@ -12,7 +12,8 @@ import {
   Info,
   Layers,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Users
 } from 'lucide-react';
 
 /**
@@ -28,15 +29,22 @@ const CITY_COORDINATES = {
   Chennai: { lat: 13.0827, lng: 80.2707, zoom: 12 },
   Pune: { lat: 18.5204, lng: 73.8567, zoom: 12 },
   Kolkata: { lat: 22.5726, lng: 88.3639, zoom: 12 },
+  Gurugram: { lat: 28.4595, lng: 77.0266, zoom: 12 },
+  Mohali: { lat: 30.7046, lng: 76.7179, zoom: 12 },
+  Ahmedabad: { lat: 23.0225, lng: 72.5714, zoom: 12 },
+  Jaipur: { lat: 26.9124, lng: 75.7873, zoom: 12 },
+  Lucknow: { lat: 26.8467, lng: 80.9462, zoom: 12 },
+  Kochi: { lat: 9.9312, lng: 76.2673, zoom: 12 },
   India: { lat: 20.5937, lng: 78.9629, zoom: 5 }
 };
 
 /**
  * Custom SVG Marker Icon Generator for Google Maps & Leaflet
  */
-const createMarkerSvgString = (isSelected = false) => {
-  const pinColor = isSelected ? '#e11d48' : '#1e60f2'; // Rose-600 when selected, Primary-600 default
-  const strokeColor = isSelected ? '#881337' : '#0d213f'; // Dark outline
+const createMarkerSvgString = (isSelected = false, isDoctorPractice = false) => {
+  // Emerald for verified doctor practice locations, Royal Blue for general discovery, Crimson for selected
+  const pinColor = isSelected ? '#e11d48' : isDoctorPractice ? '#059669' : '#1e60f2';
+  const strokeColor = isSelected ? '#881337' : isDoctorPractice ? '#064e3b' : '#0d213f';
   const scale = isSelected ? 1.25 : 1.0;
 
   return `
@@ -55,8 +63,8 @@ const createMarkerSvgString = (isSelected = false) => {
   `;
 };
 
-const createGoogleMarkerIcon = (isSelected = false) => {
-  const svg = createMarkerSvgString(isSelected);
+const createGoogleMarkerIcon = (isSelected = false, isDoctorPractice = false) => {
+  const svg = createMarkerSvgString(isSelected, isDoctorPractice);
   const scale = isSelected ? 1.25 : 1.0;
 
   return {
@@ -70,9 +78,6 @@ const createGoogleMarkerIcon = (isSelected = false) => {
   };
 };
 
-/**
- * Modern Google Maps styling with gentle healthcare-friendly contrast
- */
 const MAP_STYLES = [
   {
     featureType: 'poi.medical',
@@ -101,9 +106,6 @@ const MAP_STYLES = [
   }
 ];
 
-/**
- * Error boundary component to prevent map rendering issues from breaking the entire page
- */
 export class MapErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -146,14 +148,14 @@ const GooglePlacesMap = ({
   error = null,
   height = 'h-[440px]',
   title = 'Interactive Clinic & Hospital Map',
-  subtitle = 'Real-time healthcare facility markers powered by Google Places (New) coordinates'
+  subtitle = 'Real-time healthcare facility markers across Indian metropolitan regions'
 }) => {
   const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null); // google.maps.Map OR L.Map
-  const markersRef = useRef([]); // google.maps.Marker[] OR L.Marker[]
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef([]);
   const infoWindowRef = useRef(null);
 
-  const [activeEngine, setActiveEngine] = useState('detecting'); // 'google' | 'leaflet' | 'detecting'
+  const [activeEngine, setActiveEngine] = useState('detecting');
   const [createdMarkersCount, setCreatedMarkersCount] = useState(0);
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [isLeafletLoaded, setIsLeafletLoaded] = useState(false);
@@ -162,11 +164,11 @@ const GooglePlacesMap = ({
   const [authError, setAuthError] = useState(false);
   const [apiNotActivated, setApiNotActivated] = useState(false);
   const [activePlace, setActivePlace] = useState(null);
-  const [mapType, setMapType] = useState('roadmap'); // 'roadmap' | 'satellite'
+  const [mapType, setMapType] = useState('roadmap');
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-  // Intercept Google Maps error messages (e.g. ApiNotActivatedMapError) to switch to fallback tile engine
+  // Intercept Google Maps errors
   useEffect(() => {
     const originalConsoleError = console.error;
     console.error = (...args) => {
@@ -197,7 +199,7 @@ const GooglePlacesMap = ({
     }
   }, [selectedPlaceId, places]);
 
-  // Load Google Maps JavaScript API script
+  // Load Google Maps JS SDK
   useEffect(() => {
     if (!apiKey) {
       setActiveEngine('leaflet');
@@ -271,7 +273,6 @@ const GooglePlacesMap = ({
       return;
     }
 
-    // Add Leaflet CSS
     if (!document.getElementById('leaflet-css')) {
       const link = document.createElement('link');
       link.id = 'leaflet-css';
@@ -280,7 +281,6 @@ const GooglePlacesMap = ({
       document.head.appendChild(link);
     }
 
-    // Add Leaflet JS
     if (!document.getElementById('leaflet-js')) {
       const script = document.createElement('script');
       script.id = 'leaflet-js';
@@ -295,11 +295,10 @@ const GooglePlacesMap = ({
     }
   }, [activeEngine]);
 
-  // Initialize Map Instance (Google Maps or Leaflet)
+  // Initialize Map Instance
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Clean up existing map instance if engine switches
     if (mapInstanceRef.current && typeof mapInstanceRef.current.remove === 'function') {
       try {
         mapInstanceRef.current.remove();
@@ -309,8 +308,8 @@ const GooglePlacesMap = ({
       }
     }
 
-    const cityKey = activeCity || 'Bengaluru';
-    const initialCenter = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
+    const cityKey = activeCity || (places.length > 0 ? '' : 'India');
+    const initialCenter = CITY_COORDINATES[cityKey] || CITY_COORDINATES.India;
 
     // ENGINE A: GOOGLE MAPS
     if (activeEngine === 'google' && isScriptLoaded && window.google?.maps?.Map && !authError && !apiNotActivated) {
@@ -337,14 +336,13 @@ const GooglePlacesMap = ({
           if (infoWindowRef.current) infoWindowRef.current.close();
         });
 
-        // Trigger resize after mounting to ensure full tile rendering
         setTimeout(() => {
           if (window.google?.maps?.event) {
             window.google.maps.event.trigger(map, 'resize');
           }
         }, 200);
       } catch (err) {
-        console.warn('Google Maps init threw error, switching to OpenStreetMap tiles:', err);
+        console.warn('Google Maps init failed, switching to OpenStreetMap tiles:', err);
         setActiveEngine('leaflet');
       }
     }
@@ -371,7 +369,6 @@ const GooglePlacesMap = ({
 
         mapInstanceRef.current = map;
 
-        // Invalidate size to guarantee immediate full canvas tile coverage
         setTimeout(() => {
           map.invalidateSize();
         }, 150);
@@ -382,7 +379,7 @@ const GooglePlacesMap = ({
     }
   }, [activeEngine, isScriptLoaded, isLeafletLoaded, authError, apiNotActivated, activeCity]);
 
-  // Handle Map Type Toggle (Roadmap vs Satellite) for Google Maps
+  // Handle Map Type Toggle for Google Maps
   const toggleMapType = () => {
     if (!mapInstanceRef.current) return;
     if (activeEngine === 'google' && typeof mapInstanceRef.current.setMapTypeId === 'function') {
@@ -395,8 +392,8 @@ const GooglePlacesMap = ({
   // Center map on specified coordinates
   const handleRecenter = useCallback(() => {
     if (!mapInstanceRef.current) return;
-    const cityKey = activeCity || 'Bengaluru';
-    const coords = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
+    const cityKey = activeCity || (places.length > 0 ? '' : 'India');
+    const coords = CITY_COORDINATES[cityKey] || CITY_COORDINATES.India;
 
     try {
       if (activeEngine === 'google' && typeof mapInstanceRef.current.panTo === 'function') {
@@ -408,9 +405,9 @@ const GooglePlacesMap = ({
     } catch (e) {
       console.warn('Could not recenter map:', e);
     }
-  }, [activeCity, activeEngine]);
+  }, [activeCity, activeEngine, places]);
 
-  // Render & Update Markers when Places change (Strictly track createdMarkersCount)
+  // Render & Update Markers when Places change
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
@@ -428,7 +425,6 @@ const GooglePlacesMap = ({
       try {
         const map = mapInstanceRef.current;
 
-        // Clear existing markers
         markersRef.current.forEach((m) => {
           if (m && typeof m.setMap === 'function') m.setMap(null);
         });
@@ -436,11 +432,9 @@ const GooglePlacesMap = ({
 
         if (validPlaces.length === 0) {
           setCreatedMarkersCount(0);
-          if (activeCity && CITY_COORDINATES[activeCity]) {
-            const c = CITY_COORDINATES[activeCity];
-            map.panTo({ lat: c.lat, lng: c.lng });
-            map.setZoom(c.zoom);
-          }
+          const c = CITY_COORDINATES[activeCity] || CITY_COORDINATES.India;
+          map.panTo({ lat: c.lat, lng: c.lng });
+          map.setZoom(c.zoom);
           return;
         }
 
@@ -449,27 +443,27 @@ const GooglePlacesMap = ({
         validPlaces.forEach((place) => {
           const position = { lat: place.latitude, lng: place.longitude };
           const isSelected = activePlace?.id === place.id;
+          const isDocPractice = !!place.isDoctorPractice;
 
           const marker = new window.google.maps.Marker({
             position,
             map,
             title: place.displayName,
-            icon: createGoogleMarkerIcon(isSelected),
-            zIndex: isSelected ? 999 : 10
+            icon: createGoogleMarkerIcon(isSelected, isDocPractice),
+            zIndex: isSelected ? 999 : isDocPractice ? 50 : 10
           });
 
           marker.addListener('click', () => {
             setActivePlace(place);
             onSelectPlace(place);
             map.panTo(position);
-            map.setZoom(Math.max(map.getZoom(), 15));
+            map.setZoom(Math.max(map.getZoom(), 14));
           });
 
           markersRef.current.push(marker);
           bounds.extend(position);
         });
 
-        // Set actual count of markers successfully created
         setCreatedMarkersCount(markersRef.current.length);
 
         if (markersRef.current.length === 1) {
@@ -489,7 +483,6 @@ const GooglePlacesMap = ({
         const L = window.L;
         const map = mapInstanceRef.current;
 
-        // Clear existing markers
         markersRef.current.forEach((m) => {
           if (m && typeof m.remove === 'function') m.remove();
         });
@@ -497,10 +490,8 @@ const GooglePlacesMap = ({
 
         if (validPlaces.length === 0) {
           setCreatedMarkersCount(0);
-          if (activeCity && CITY_COORDINATES[activeCity]) {
-            const c = CITY_COORDINATES[activeCity];
-            map.setView([c.lat, c.lng], c.zoom);
-          }
+          const c = CITY_COORDINATES[activeCity] || CITY_COORDINATES.India;
+          map.setView([c.lat, c.lng], c.zoom);
           return;
         }
 
@@ -509,10 +500,11 @@ const GooglePlacesMap = ({
         validPlaces.forEach((place) => {
           const latLng = [place.latitude, place.longitude];
           const isSelected = activePlace?.id === place.id;
+          const isDocPractice = !!place.isDoctorPractice;
 
           const customIcon = L.divIcon({
             className: 'custom-leaflet-marker',
-            html: createMarkerSvgString(isSelected),
+            html: createMarkerSvgString(isSelected, isDocPractice),
             iconSize: isSelected ? [45, 60] : [36, 48],
             iconAnchor: isSelected ? [22, 60] : [18, 48]
           });
@@ -522,7 +514,7 @@ const GooglePlacesMap = ({
           marker.on('click', () => {
             setActivePlace(place);
             onSelectPlace(place);
-            map.setView(latLng, Math.max(map.getZoom(), 15));
+            map.setView(latLng, Math.max(map.getZoom(), 14));
           });
 
           marker.addTo(map);
@@ -530,7 +522,6 @@ const GooglePlacesMap = ({
           latLngs.push(latLng);
         });
 
-        // Set actual count of markers successfully created
         setCreatedMarkersCount(markersRef.current.length);
 
         if (latLngs.length === 1) {
@@ -563,7 +554,7 @@ const GooglePlacesMap = ({
               {createdMarkersCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary-100 text-primary-700 border border-primary-200 flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-primary-600" />
-                  {createdMarkersCount} Pins Plotted
+                  {createdMarkersCount} Locations Plotted
                 </span>
               )}
             </div>
@@ -638,7 +629,7 @@ const GooglePlacesMap = ({
           <div className="absolute inset-0 bg-white/75 backdrop-blur-xs z-30 flex flex-col items-center justify-center gap-3">
             <div className="w-10 h-10 border-3 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
             <span className="text-xs font-bold text-navy-900">
-              Updating clinic markers from Google Places...
+              Loading medical center coordinates across India...
             </span>
           </div>
         )}
@@ -675,15 +666,27 @@ const GooglePlacesMap = ({
                     }}
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-xl bg-ice-100 text-primary-600 flex items-center justify-center shrink-0 border border-primary-200">
+                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 border ${
+                    activePlace.isDoctorPractice
+                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                      : 'bg-ice-100 text-primary-600 border-primary-200'
+                  }`}>
                     <Building2 className="w-6 h-6" />
                   </div>
                 )}
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary-600 bg-primary-50 px-2 py-0.5 rounded border border-primary-100">
-                      {activePlace.primaryType ? activePlace.primaryType.replace(/_/g, ' ') : 'Clinic'}
-                    </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {activePlace.isDoctorPractice ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        CareSync Hospital Hub
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary-600 bg-primary-50 px-2 py-0.5 rounded border border-primary-100">
+                        {activePlace.primaryType ? activePlace.primaryType.replace(/_/g, ' ') : 'Hospital'}
+                      </span>
+                    )}
+
                     {activePlace.rating && (
                       <span className="text-[11px] font-extrabold text-amber-600 flex items-center gap-0.5">
                         <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
@@ -714,6 +717,32 @@ const GooglePlacesMap = ({
               </button>
             </div>
 
+            {/* Doctors Practicing Here Section */}
+            {activePlace.isDoctorPractice && activePlace.doctors && activePlace.doctors.length > 0 && (
+              <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
+                <span className="text-[11px] font-bold text-navy-900 flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-primary-600" />
+                  {activePlace.doctorCount} Verified Specialist{activePlace.doctorCount > 1 ? 's' : ''} Practicing Here:
+                </span>
+                <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
+                  {activePlace.doctors.map((d) => (
+                    <div
+                      key={d.id}
+                      className="p-1.5 rounded-lg bg-ice-50/70 border border-slate-100 flex items-center justify-between text-[11px]"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <span className="font-bold text-navy-900 truncate block">{d.fullName}</span>
+                        <span className="text-[10px] text-slate-500">{d.specialization}</span>
+                      </div>
+                      <span className="font-bold text-primary-700 text-[10px] shrink-0">
+                        ₹{Number(d.consultationFee || 500).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Quick Actions inside Floating Card */}
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
               {activePlace.googleMapsUri ? (
@@ -738,20 +767,20 @@ const GooglePlacesMap = ({
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary-600 hover:bg-navy-900 text-white font-bold text-xs shadow-xs transition-colors"
               >
                 <Stethoscope className="w-3 h-3" />
-                <span>Filter Doctors Here</span>
+                <span>{activePlace.isDoctorPractice ? 'View Doctor Slots' : 'Filter Doctors Here'}</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* Empty Places Notice (when loaded with 0 results) */}
+        {/* Empty Places Notice */}
         {!isLoading && places.length === 0 && !error && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4 z-10">
             <div className="bg-white/95 backdrop-blur-xs p-4 rounded-2xl border border-slate-200 shadow-md text-center max-w-sm pointer-events-auto space-y-1">
               <Building2 className="w-6 h-6 text-slate-400 mx-auto" />
               <h4 className="text-xs font-bold text-navy-900">No Facilities in Current View</h4>
               <p className="text-[11px] text-slate-500">
-                Select a popular city chip or search for a hospital to view map markers.
+                Select another city chip or clear your filters to view healthcare markers across India.
               </p>
             </div>
           </div>
@@ -766,7 +795,7 @@ const GooglePlacesMap = ({
           </span>
           {createdMarkersCount > 0 && (
             <span className="text-slate-400">
-              • {createdMarkersCount} live locations plotted
+              • {createdMarkersCount} verified locations plotted across India
             </span>
           )}
         </div>

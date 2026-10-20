@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { doctorService } from '../services/doctorService';
 import { placeService } from '../services/placeService';
@@ -25,8 +25,50 @@ import {
   Map as MapIcon,
   Eye,
   EyeOff,
-  Navigation
+  Navigation,
+  Users
 } from 'lucide-react';
+
+const INDIAN_CITIES = [
+  { label: 'All India', value: '' },
+  { label: 'Bengaluru', value: 'Bengaluru' },
+  { label: 'Delhi NCR', value: 'Delhi' },
+  { label: 'Mumbai', value: 'Mumbai' },
+  { label: 'Hyderabad', value: 'Hyderabad' },
+  { label: 'Chennai', value: 'Chennai' },
+  { label: 'Pune', value: 'Pune' },
+  { label: 'Kolkata', value: 'Kolkata' },
+  { label: 'Gurugram', value: 'Gurugram' },
+  { label: 'Mohali / Chd', value: 'Mohali' },
+  { label: 'Ahmedabad', value: 'Ahmedabad' },
+  { label: 'Jaipur', value: 'Jaipur' },
+  { label: 'Lucknow', value: 'Lucknow' },
+  { label: 'Kochi', value: 'Kochi' }
+];
+
+const SPECIALIZATIONS_LIST = [
+  'General Medicine',
+  'Cardiology',
+  'Dermatology',
+  'Pediatrics',
+  'Orthopedics',
+  'Neurology',
+  'ENT',
+  'Gynecology',
+  'Ophthalmology',
+  'Psychiatry',
+  'Pulmonology',
+  'Gastroenterology',
+  'Endocrinology',
+  'Urology'
+];
+
+const PLACE_TYPES_LIST = [
+  { label: 'All Facilities', value: '' },
+  { label: 'Hospitals', value: 'hospital' },
+  { label: 'Medical Clinics', value: 'medical_clinic' },
+  { label: 'Pharmacies', value: 'pharmacy' }
+];
 
 const DoctorSearchPage = () => {
   const navigate = useNavigate();
@@ -34,8 +76,8 @@ const DoctorSearchPage = () => {
   const mapSectionRef = useRef(null);
   const doctorResultsRef = useRef(null);
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState('doctors'); // 'doctors' | 'places'
+  // Tab State: 'doctors' | 'places'
+  const [activeTab, setActiveTab] = useState('doctors');
 
   // Map visibility toggle on Doctors tab
   const [showDoctorsMap, setShowDoctorsMap] = useState(true);
@@ -50,48 +92,24 @@ const DoctorSearchPage = () => {
   const [doctors, setDoctors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Places Search State
+  // Places Search State (Google Places New API)
   const [placesQuery, setPlacesQuery] = useState('Hospital');
   const [placesCity, setPlacesCity] = useState('');
   const [placesType, setPlacesType] = useState('hospital');
   const [places, setPlaces] = useState([]);
+  const [nextPageToken, setNextPageToken] = useState(null);
   const [isPlacesLoading, setIsPlacesLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [placesError, setPlacesError] = useState(null);
   const [placesStatus, setPlacesStatus] = useState(null);
   const [placesAttribution, setPlacesAttribution] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(null);
 
-  const indianCities = ['Bengaluru', 'Mumbai', 'Delhi NCR', 'Hyderabad', 'Chennai', 'Pune'];
-
-  const specializationsList = [
-    'General Medicine',
-    'Cardiology',
-    'Dermatology',
-    'Pediatrics',
-    'Orthopedics',
-    'Neurology',
-    'ENT',
-    'Gynecology',
-    'Ophthalmology',
-    'Psychiatry',
-    'Pulmonology',
-    'Gastroenterology',
-    'Endocrinology',
-    'Urology'
-  ];
-
-  const placeTypesList = [
-    { label: 'All Facilities', value: '' },
-    { label: 'Hospitals', value: 'hospital' },
-    { label: 'Medical Clinics', value: 'medical_clinic' },
-    { label: 'Pharmacies', value: 'pharmacy' }
-  ];
-
+  // Pre-load doctors and check Places API status on mount
   useEffect(() => {
     fetchDoctors();
     checkPlacesStatus();
-    // Pre-populate places on initial mount so the map renders with live clinic markers
-    fetchNearbyPlaces(location || 'Bengaluru', 'Hospital');
+    fetchPlaces('Hospital', '', 'hospital');
   }, []);
 
   const checkPlacesStatus = async () => {
@@ -118,7 +136,7 @@ const DoctorSearchPage = () => {
         specialization: querySpec.trim() || undefined,
         location: queryLoc.trim() || undefined,
       });
-      setDoctors(data);
+      setDoctors(data || []);
     } catch (err) {
       console.error('Failed to search doctors:', err);
     } finally {
@@ -126,70 +144,35 @@ const DoctorSearchPage = () => {
     }
   };
 
-  const fetchNearbyPlaces = async (city = 'Bengaluru', query = 'Hospital') => {
-    setIsPlacesLoading(true);
-    setPlacesError(null);
-    try {
-      const res = await placeService.searchPlaces({
-        query: query || 'Hospital',
-        city: city || undefined,
-        placeType: 'hospital',
-        pageSize: 10
-      });
-      setPlaces(res.places || []);
-      if (res.attribution) setPlacesAttribution(res.attribution);
-    } catch (err) {
-      console.warn('Could not load live healthcare places:', err);
-    } finally {
-      setIsPlacesLoading(false);
-    }
-  };
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    fetchDoctors();
-    if (location) {
-      fetchNearbyPlaces(location, 'Hospital');
-    }
-  };
-
-  const handleCitySelect = (city) => {
-    const newLoc = location === city ? '' : city;
-    setLocation(newLoc);
-    fetchDoctors({ location: newLoc });
-    if (newLoc) {
-      setPlacesCity(newLoc);
-      fetchNearbyPlaces(newLoc, 'Hospital');
+  const fetchPlaces = async (query, city, placeType, pageToken = null, append = false) => {
+    if (append) {
+      setIsLoadingMore(true);
     } else {
-      fetchNearbyPlaces('Bengaluru', 'Hospital');
+      setIsPlacesLoading(true);
+      setPlacesError(null);
+      setRetryAfterSeconds(null);
     }
-  };
-
-  const handleResetFilters = () => {
-    setName('');
-    setSpecialization('');
-    setLocation('');
-    fetchDoctors({ name: '', specialization: '', location: '' });
-    fetchNearbyPlaces('Bengaluru', 'Hospital');
-  };
-
-  // Google Places Search Form handler
-  const handlePlacesSearch = async (e) => {
-    if (e) e.preventDefault();
-    if (!placesQuery.trim()) return;
-
-    setIsPlacesLoading(true);
-    setPlacesError(null);
-    setRetryAfterSeconds(null);
 
     try {
       const res = await placeService.searchPlaces({
-        query: placesQuery.trim(),
-        city: placesCity.trim() || undefined,
-        placeType: placesType || undefined,
+        query: query.trim() || 'Hospital',
+        city: city.trim() || undefined,
+        placeType: placeType || undefined,
+        pageToken: pageToken || undefined,
         pageSize: 12
       });
-      setPlaces(res.places || []);
+
+      const returnedPlaces = res.places || [];
+      if (append) {
+        setPlaces((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const unique = returnedPlaces.filter((p) => !existingIds.has(p.id));
+          return [...prev, ...unique];
+        });
+      } else {
+        setPlaces(returnedPlaces);
+      }
+      setNextPageToken(res.nextPageToken || null);
       if (res.attribution) setPlacesAttribution(res.attribution);
     } catch (err) {
       if (err.response?.status === 429) {
@@ -198,7 +181,7 @@ const DoctorSearchPage = () => {
         setRetryAfterSeconds(secs);
         setPlacesError(`Per-minute rate limit reached. Please wait ${secs}s before submitting another query.`);
       } else if (err.response?.status === 503) {
-        setPlacesError(err.response?.data?.message || 'Google Places integration is currently unavailable.');
+        setPlacesError(err.response?.data?.message || 'Google Places integration is currently in standby mode.');
       } else if (err.response?.status === 401) {
         setPlacesError('Please log in to search live facilities with Google Places.');
       } else {
@@ -206,7 +189,97 @@ const DoctorSearchPage = () => {
       }
     } finally {
       setIsPlacesLoading(false);
+      setIsLoadingMore(false);
     }
+  };
+
+  /**
+   * Group verified doctors by hospital GPS coordinates into map-renderable facilities.
+   * Ensures genuine doctor practice markers appear dynamically across India on the map.
+   */
+  const doctorPracticePlaces = useMemo(() => {
+    if (!doctors || doctors.length === 0) return [];
+
+    const groupMap = new Map();
+
+    doctors.forEach((doc) => {
+      if (typeof doc.latitude === 'number' && typeof doc.longitude === 'number') {
+        const key = `${doc.latitude.toFixed(4)}_${doc.longitude.toFixed(4)}`;
+        if (!groupMap.has(key)) {
+          const rawHospital = doc.hospitalName || (doc.location ? doc.location.split(',')[0].trim() : 'Medical Center');
+          groupMap.set(key, {
+            id: `practice-${key}`,
+            displayName: rawHospital,
+            formattedAddress: doc.location || `${rawHospital}, India`,
+            latitude: doc.latitude,
+            longitude: doc.longitude,
+            primaryType: 'hospital',
+            isDoctorPractice: true,
+            googleMapsUri: `https://www.google.com/maps/search/?api=1&query=${doc.latitude},${doc.longitude}`,
+            doctors: []
+          });
+        }
+        groupMap.get(key).doctors.push(doc);
+      }
+    });
+
+    return Array.from(groupMap.values()).map((facility) => ({
+      ...facility,
+      doctorCount: facility.doctors.length
+    }));
+  }, [doctors]);
+
+  /**
+   * Helper to check whether any CareSync verified doctors match a Google Place result.
+   */
+  const findMatchingDoctorsForPlace = (place) => {
+    if (!doctors || doctors.length === 0 || !place.displayName) return [];
+    const placeNameLower = place.displayName.toLowerCase();
+
+    return doctors.filter((doc) => {
+      const docHospital = (doc.hospitalName || '').toLowerCase();
+      if (docHospital && (placeNameLower.includes(docHospital) || docHospital.includes(placeNameLower))) {
+        return true;
+      }
+      return false;
+    });
+  };
+
+  // Doctors Tab Filter Submissions
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    fetchDoctors();
+  };
+
+  const handleCitySelect = (cityValue) => {
+    const isCurrent = cityValue === '' ? !location : location.toLowerCase().includes(cityValue.toLowerCase());
+    const newLoc = isCurrent && cityValue !== '' ? '' : cityValue;
+    setLocation(newLoc);
+    fetchDoctors({ location: newLoc });
+  };
+
+  const handleResetFilters = () => {
+    setName('');
+    setSpecialization('');
+    setLocation('');
+    fetchDoctors({ name: '', specialization: '', location: '' });
+  };
+
+  // Places Tab Search Submissions
+  const handlePlacesSearch = (e) => {
+    if (e) e.preventDefault();
+    fetchPlaces(placesQuery, placesCity, placesType);
+  };
+
+  const handlePlacesCitySelect = (cityValue) => {
+    const newCity = placesCity === cityValue ? '' : cityValue;
+    setPlacesCity(newCity);
+    fetchPlaces(placesQuery, newCity, placesType);
+  };
+
+  const handleLoadMorePlaces = () => {
+    if (!nextPageToken || isLoadingMore) return;
+    fetchPlaces(placesQuery, placesCity, placesType, nextPageToken, true);
   };
 
   const handleSelectFacilityForDoctorSearch = (facilityName) => {
@@ -218,7 +291,6 @@ const DoctorSearchPage = () => {
     setActiveTab('doctors');
     fetchDoctors({ location: cleanFacilityName });
 
-    // Smooth scroll down to doctor results
     setTimeout(() => {
       if (doctorResultsRef.current) {
         doctorResultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -237,6 +309,17 @@ const DoctorSearchPage = () => {
     }
   };
 
+  const handleScrollToDoctorLocation = (doctor) => {
+    if (typeof doctor.latitude === 'number' && typeof doctor.longitude === 'number') {
+      const key = `practice-${doctor.latitude.toFixed(4)}_${doctor.longitude.toFixed(4)}`;
+      setShowDoctorsMap(true);
+      setSelectedPlaceId(key);
+      if (mapSectionRef.current) {
+        mapSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -249,7 +332,7 @@ const DoctorSearchPage = () => {
             </h1>
             {activeTab === 'doctors' ? (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary-50 text-primary-700 border border-primary-200">
-                {doctors.length} Verified
+                {doctors.length} Verified Doctors
               </span>
             ) : (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
@@ -259,7 +342,7 @@ const DoctorSearchPage = () => {
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {activeTab === 'doctors'
-              ? 'Book verified appointments with NMC registered doctors across Apollo, Fortis, Max & Manipal hospitals.'
+              ? 'Book verified appointments with NMC registered doctors across Apollo, Fortis, Max, Manipal & Medanta hospitals.'
               : 'Discover certified hospitals, specialty clinics, and medical centers across Indian metropolitan regions.'}
           </p>
         </div>
@@ -282,7 +365,7 @@ const DoctorSearchPage = () => {
             type="button"
             onClick={() => {
               setActiveTab('places');
-              if (places.length === 0) handlePlacesSearch();
+              if (places.length === 0) fetchPlaces(placesQuery, placesCity, placesType);
             }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
               activeTab === 'places'
@@ -291,7 +374,7 @@ const DoctorSearchPage = () => {
             }`}
           >
             <Building2 className="w-4 h-4 text-primary-600" />
-            <span>Hospitals & Clinics</span>
+            <span>Hospitals &amp; Clinics</span>
           </button>
         </div>
       </div>
@@ -309,7 +392,7 @@ const DoctorSearchPage = () => {
                 <Search className="w-4 h-4 text-slate-400 shrink-0" />
                 <input
                   type="text"
-                  placeholder="Search by doctor name (e.g. Dr. Rajesh)..."
+                  placeholder="Doctor name (e.g. Dr. Rajesh)..."
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-transparent border-none text-xs sm:text-sm text-slate-900 focus:outline-none placeholder-slate-400 font-medium"
@@ -323,7 +406,7 @@ const DoctorSearchPage = () => {
                   className="w-full bg-transparent border-none text-xs sm:text-sm text-slate-700 focus:outline-none font-medium"
                 >
                   <option value="">All Specializations</option>
-                  {specializationsList.map((spec) => (
+                  {SPECIALIZATIONS_LIST.map((spec) => (
                     <option key={spec} value={spec}>
                       {spec}
                     </option>
@@ -335,7 +418,7 @@ const DoctorSearchPage = () => {
                 <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
                 <input
                   type="text"
-                  placeholder="Hospital, clinic or area (e.g. Indiranagar)..."
+                  placeholder="Hospital, area or city (e.g. Apollo, Indiranagar, Mumbai)..."
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   className="w-full bg-transparent border-none text-xs sm:text-sm text-slate-900 focus:outline-none placeholder-slate-400 font-medium"
@@ -355,22 +438,28 @@ const DoctorSearchPage = () => {
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5 text-primary-600" /> Filter by City:
+                  <Building2 className="w-3.5 h-3.5 text-primary-600" /> Filter Region:
                 </span>
-                {indianCities.map((city) => (
-                  <button
-                    key={city}
-                    type="button"
-                    onClick={() => handleCitySelect(city)}
-                    className={`text-xs px-3.5 py-1 rounded-full border transition-all ${
-                      location.toLowerCase().includes(city.toLowerCase())
-                        ? 'bg-primary-600 text-white border-primary-600 font-bold shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300 hover:text-primary-700'
-                    }`}
-                  >
-                    {city}
-                  </button>
-                ))}
+                {INDIAN_CITIES.map((city) => {
+                  const isSelected = city.value === ''
+                    ? !location
+                    : location.toLowerCase().includes(city.value.toLowerCase());
+
+                  return (
+                    <button
+                      key={city.value || 'all'}
+                      type="button"
+                      onClick={() => handleCitySelect(city.value)}
+                      className={`text-xs px-3.5 py-1 rounded-full border transition-all ${
+                        isSelected
+                          ? 'bg-primary-600 text-white border-primary-600 font-bold shadow-xs'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300 hover:text-primary-700'
+                      }`}
+                    >
+                      {city.label}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="flex items-center gap-2">
@@ -396,21 +485,21 @@ const DoctorSearchPage = () => {
             </div>
           </div>
 
-          {/* Interactive Google Map on Doctors Tab */}
+          {/* Interactive Map on Doctors Tab displaying Doctor Practice Locations */}
           {showDoctorsMap && (
             <div ref={mapSectionRef} className="space-y-2 animate-in fade-in duration-300">
               <MapErrorBoundary>
                 <GooglePlacesMap
-                  places={places}
+                  places={doctorPracticePlaces}
                   selectedPlaceId={selectedPlaceId}
                   onSelectPlace={handleSelectPlaceOnMap}
                   onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
-                  activeCity={location || 'Bengaluru'}
-                  isLoading={isPlacesLoading}
-                  error={placesError}
+                  activeCity={location || 'India'}
+                  isLoading={isLoading}
+                  error={null}
                   height="h-[380px] sm:h-[420px]"
-                  title="Partner Hospitals & Clinics (Interactive Map)"
-                  subtitle="Click any clinic pin to inspect real coordinates and filter practicing doctors"
+                  title="CareSync Hospital Hubs &amp; Practice Locations (Nationwide Map)"
+                  subtitle="Click any hospital marker to view practicing doctors, consultation fees, and slot availability"
                 />
               </MapErrorBoundary>
             </div>
@@ -454,14 +543,14 @@ const DoctorSearchPage = () => {
               <div>
                 <h3 className="text-lg font-bold text-navy-900">No Doctors Found</h3>
                 <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto mt-1">
-                  No healthcare specialists matched your criteria. Try clearing search filters or searching for another city.
+                  No registered specialists matched your criteria. Try selecting another city or reset filters to view all doctors across India.
                 </p>
               </div>
               <button
                 onClick={handleResetFilters}
                 className="px-5 py-2.5 bg-primary-600 text-white text-xs font-bold rounded-full shadow-xs hover:bg-primary-700 transition-colors"
               >
-                Show All Doctors
+                Show All Doctors Across India
               </button>
             </div>
           ) : (
@@ -528,11 +617,19 @@ const DoctorSearchPage = () => {
                       </div>
                     </div>
 
-                    {/* Footer with Circular Quick-Action button */}
+                    {/* Footer with Show on Map and Instant Booking buttons */}
                     <div className="px-5 pb-5 pt-2 flex items-center justify-between gap-3 border-t border-slate-100">
-                      <div className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Instant Booking</span>
+                      <div>
+                        {typeof doctor.latitude === 'number' && typeof doctor.longitude === 'number' && (
+                          <button
+                            type="button"
+                            onClick={() => handleScrollToDoctorLocation(doctor)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-navy-900 transition-colors"
+                          >
+                            <MapIcon className="w-3.5 h-3.5" />
+                            <span>Show on Map</span>
+                          </button>
+                        )}
                       </div>
                       <button
                         onClick={() => navigate(`/patient/doctors/${doctor.id}`)}
@@ -592,7 +689,7 @@ const DoctorSearchPage = () => {
                 <Search className="w-4 h-4 text-slate-400 shrink-0" />
                 <input
                   type="text"
-                  placeholder="Hospital or clinic name (e.g. Apollo, Fortis, Manipal)..."
+                  placeholder="Facility name (e.g. Apollo, Fortis, Max, AIIMS)..."
                   value={placesQuery}
                   onChange={(e) => setPlacesQuery(e.target.value)}
                   className="w-full bg-transparent border-none text-xs sm:text-sm text-slate-900 focus:outline-none placeholder-slate-400 font-medium"
@@ -605,7 +702,7 @@ const DoctorSearchPage = () => {
                   onChange={(e) => setPlacesType(e.target.value)}
                   className="w-full bg-transparent border-none text-xs sm:text-sm text-slate-700 focus:outline-none font-medium"
                 >
-                  {placeTypesList.map((pt) => (
+                  {PLACE_TYPES_LIST.map((pt) => (
                     <option key={pt.value} value={pt.value}>
                       {pt.label}
                     </option>
@@ -619,10 +716,9 @@ const DoctorSearchPage = () => {
                   onChange={(e) => setPlacesCity(e.target.value)}
                   className="w-full bg-transparent border-none text-xs sm:text-sm text-slate-700 focus:outline-none font-medium"
                 >
-                  <option value="">All Indian Cities</option>
-                  {indianCities.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
+                  {INDIAN_CITIES.map((city) => (
+                    <option key={city.value || 'all'} value={city.value}>
+                      {city.label}
                     </option>
                   ))}
                 </select>
@@ -641,26 +737,20 @@ const DoctorSearchPage = () => {
             {/* Quick Filter City Buttons */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-primary-600" /> Popular Hubs:
+                <MapPin className="w-3.5 h-3.5 text-primary-600" /> Popular Regions:
               </span>
-              {indianCities.map((city) => (
+              {INDIAN_CITIES.map((city) => (
                 <button
-                  key={city}
+                  key={city.value || 'all'}
                   type="button"
-                  onClick={() => {
-                    const newCity = placesCity === city ? '' : city;
-                    setPlacesCity(newCity);
-                    if (newCity) {
-                      handlePlacesSearch();
-                    }
-                  }}
+                  onClick={() => handlePlacesCitySelect(city.value)}
                   className={`text-xs px-3.5 py-1 rounded-full border transition-all ${
-                    placesCity === city
+                    placesCity === city.value
                       ? 'bg-primary-600 text-white border-primary-600 font-bold shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300 hover:text-primary-700'
                   }`}
                 >
-                  {city}
+                  {city.label}
                 </button>
               ))}
             </div>
@@ -674,12 +764,12 @@ const DoctorSearchPage = () => {
                 selectedPlaceId={selectedPlaceId}
                 onSelectPlace={handleSelectPlaceOnMap}
                 onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
-                activeCity={placesCity || 'Bengaluru'}
+                activeCity={placesCity || 'India'}
                 isLoading={isPlacesLoading}
                 error={placesError}
                 height="h-[440px] sm:h-[480px]"
                 title="Verified Medical Facilities on Google Maps"
-                subtitle="Explore hospital coordinates, ratings, and Google Maps navigation links"
+                subtitle="Explore accredited hospital coordinates, ratings, and live Google Maps directions across India"
               />
             </MapErrorBoundary>
           </div>
@@ -691,7 +781,7 @@ const DoctorSearchPage = () => {
                 Accredited Medical Centers &amp; Clinics
               </h2>
               <span className="text-xs text-slate-500 font-medium">
-                ({places.length} locations)
+                ({places.length} locations plotted)
               </span>
             </div>
           </div>
@@ -723,7 +813,7 @@ const DoctorSearchPage = () => {
                 type="button"
                 onClick={() => {
                   setPlacesQuery('Apollo Hospital');
-                  handlePlacesSearch();
+                  fetchPlaces('Apollo Hospital', placesCity, placesType);
                 }}
                 className="px-5 py-2.5 bg-primary-600 text-white text-xs font-bold rounded-full shadow-xs hover:bg-primary-700 transition-colors"
               >
@@ -731,131 +821,162 @@ const DoctorSearchPage = () => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {places.map((place) => {
-                const photoUrl = place.photoUrls && place.photoUrls.length > 0
-                  ? place.photoUrls[0]
-                  : null;
-                const isSelected = selectedPlaceId === place.id;
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {places.map((place) => {
+                  const photoUrl = place.photoUrls && place.photoUrls.length > 0
+                    ? place.photoUrls[0]
+                    : null;
+                  const isSelected = selectedPlaceId === place.id;
+                  const matchingDocs = findMatchingDoctorsForPlace(place);
 
-                return (
-                  <div
-                    key={place.id}
-                    className={`bg-white rounded-3xl border overflow-hidden shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between group ${
-                      isSelected
-                        ? 'border-primary-500 ring-2 ring-primary-500/20'
-                        : 'border-slate-200/90'
-                    }`}
-                  >
-                    <div>
-                      {/* Facility Photo Header or Fallback */}
-                      <div className="relative h-40 bg-gradient-to-br from-primary-900 to-navy-900 overflow-hidden">
-                        {photoUrl ? (
-                          <img
-                            src={photoUrl}
-                            alt={place.displayName}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              // If proxy photo fails or rate-limited, fall back to clean gradient
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-white/80 p-4 text-center">
-                            <Building2 className="w-10 h-10 text-primary-300 mb-1" />
-                            <span className="text-xs font-bold uppercase tracking-wider text-primary-200">
-                              {place.primaryType ? place.primaryType.replace(/_/g, ' ') : 'Medical Facility'}
+                  return (
+                    <div
+                      key={place.id}
+                      className={`bg-white rounded-3xl border overflow-hidden shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between group ${
+                        isSelected
+                          ? 'border-primary-500 ring-2 ring-primary-500/20'
+                          : 'border-slate-200/90'
+                      }`}
+                    >
+                      <div>
+                        {/* Facility Photo Header or Fallback */}
+                        <div className="relative h-40 bg-gradient-to-br from-primary-900 to-navy-900 overflow-hidden">
+                          {photoUrl ? (
+                            <img
+                              src={photoUrl}
+                              alt={place.displayName}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-white/80 p-4 text-center">
+                              <Building2 className="w-10 h-10 text-primary-300 mb-1" />
+                              <span className="text-xs font-bold uppercase tracking-wider text-primary-200">
+                                {place.primaryType ? place.primaryType.replace(/_/g, ' ') : 'Medical Facility'}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/95 backdrop-blur-xs text-navy-900 shadow-xs border border-white/40 flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3 text-emerald-600" /> Google Verified
                             </span>
-                          </div>
-                        )}
-
-                        <div className="absolute top-3 left-3">
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/95 backdrop-blur-xs text-navy-900 shadow-xs border border-white/40 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified Facility
-                          </span>
-                        </div>
-
-                        {place.rating && (
-                          <div className="absolute top-3 right-3">
-                            <span className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-navy-900/90 text-amber-300 shadow-xs flex items-center gap-1 border border-amber-400/30">
-                              <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                              <span>{place.rating.toFixed(1)}</span>
-                              {place.userRatingCount && (
-                                <span className="text-[10px] text-slate-300 font-normal">
-                                  ({place.userRatingCount})
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Facility Information */}
-                      <div className="p-5 space-y-3">
-                        <div>
-                          <h3 className="font-extrabold text-navy-900 text-base leading-snug group-hover:text-primary-600 transition-colors">
-                            {place.displayName}
-                          </h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-ice-100 text-primary-700 uppercase">
-                              {place.primaryType ? place.primaryType.replace(/_/g, ' ') : 'Hospital'}
-                            </span>
-                            {typeof place.latitude === 'number' && typeof place.longitude === 'number' && (
-                              <span className="text-[10px] font-mono text-slate-400">
-                                {place.latitude.toFixed(3)}°, {place.longitude.toFixed(3)}°
+                            {matchingDocs.length > 0 && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-xs">
+                                {matchingDocs.length} CareSync Doctors
                               </span>
                             )}
                           </div>
+
+                          {place.rating && (
+                            <div className="absolute top-3 right-3">
+                              <span className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-navy-900/90 text-amber-300 shadow-xs flex items-center gap-1 border border-amber-400/30">
+                                <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                                <span>{place.rating.toFixed(1)}</span>
+                                {place.userRatingCount && (
+                                  <span className="text-[10px] text-slate-300 font-normal">
+                                    ({place.userRatingCount})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        <div className="space-y-1.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
-                          <div className="flex items-start gap-1.5 text-slate-500">
-                            <MapPin className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-0.5" />
-                            <span className="line-clamp-2 leading-relaxed">{place.formattedAddress}</span>
+                        {/* Facility Information */}
+                        <div className="p-5 space-y-3">
+                          <div>
+                            <h3 className="font-extrabold text-navy-900 text-base leading-snug group-hover:text-primary-600 transition-colors">
+                              {place.displayName}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-ice-100 text-primary-700 uppercase">
+                                {place.primaryType ? place.primaryType.replace(/_/g, ' ') : 'Hospital'}
+                              </span>
+                              {typeof place.latitude === 'number' && typeof place.longitude === 'number' && (
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  {place.latitude.toFixed(3)}°, {place.longitude.toFixed(3)}°
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
+                            <div className="flex items-start gap-1.5 text-slate-500">
+                              <MapPin className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-0.5" />
+                              <span className="line-clamp-2 leading-relaxed">{place.formattedAddress}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Actions Footer */}
-                    <div className="px-5 pb-5 pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
-                      <div className="flex items-center gap-2">
-                        {place.googleMapsUri ? (
-                          <a
-                            href={place.googleMapsUri}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-primary-600 transition-colors"
+                      {/* Actions Footer */}
+                      <div className="px-5 pb-5 pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+                        <div className="flex items-center gap-2">
+                          {place.googleMapsUri ? (
+                            <a
+                              href={place.googleMapsUri}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-primary-600 transition-colors"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Directions</span>
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">CareSync</span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleScrollToMapAndSelect(place.id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-800 transition-colors"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Google Maps</span>
-                          </a>
-                        ) : (
-                          <span className="text-[11px] text-slate-400">CareSync Network</span>
-                        )}
+                            <MapIcon className="w-3.5 h-3.5" />
+                            <span>Pin</span>
+                          </button>
+                        </div>
 
                         <button
                           type="button"
-                          onClick={() => handleScrollToMapAndSelect(place.id)}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-800 transition-colors"
+                          onClick={() => handleSelectFacilityForDoctorSearch(place.displayName)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-600 hover:bg-navy-900 text-white rounded-full font-bold text-xs transition-colors shadow-xs"
                         >
-                          <MapIcon className="w-3.5 h-3.5" />
-                          <span>Pin on Map</span>
+                          <Stethoscope className="w-3.5 h-3.5" />
+                          <span>{matchingDocs.length > 0 ? `View ${matchingDocs.length} Doctors` : 'Find Doctors'}</span>
                         </button>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleSelectFacilityForDoctorSearch(place.displayName)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-600 hover:bg-navy-900 text-white rounded-full font-bold text-xs transition-colors shadow-xs"
-                      >
-                        <Stethoscope className="w-3.5 h-3.5" />
-                        <span>Find Doctors</span>
-                      </button>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+
+              {/* Supported Pagination: Load More Facilities */}
+              {nextPageToken && (
+                <div className="flex justify-center pt-2 pb-4">
+                  <button
+                    type="button"
+                    onClick={handleLoadMorePlaces}
+                    disabled={isLoadingMore}
+                    className="px-6 py-2.5 bg-white hover:bg-slate-50 text-primary-700 font-bold text-xs sm:text-sm rounded-full border border-primary-200 shadow-xs hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin"></div>
+                        <span>Loading Additional Facilities...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-primary-600" />
+                        <span>Load More Facilities Across India</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

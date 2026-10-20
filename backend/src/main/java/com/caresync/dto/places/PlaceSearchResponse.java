@@ -17,4 +17,5 @@ public class PlaceSearchResponse {
     private int totalFound;
     private boolean cached;
     private String attribution;
+    private String nextPageToken;
 }

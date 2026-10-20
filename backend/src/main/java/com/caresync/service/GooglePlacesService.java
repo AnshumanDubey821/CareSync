@@ -129,6 +129,10 @@ public class GooglePlacesService {
         requestBody.put("textQuery", textQuery);
         requestBody.put("pageSize", Math.min(20, Math.max(1, request.getPageSize())));
 
+        if (StringUtils.hasText(request.getPageToken())) {
+            requestBody.put("pageToken", request.getPageToken().trim());
+        }
+
         if (StringUtils.hasText(request.getPlaceType())) {
             requestBody.put("includedType", request.getPlaceType());
         }
@@ -298,6 +302,7 @@ public class GooglePlacesService {
         return (request.getQuery() + ":" +
                 (request.getCity() != null ? request.getCity() : "") + ":" +
                 (request.getPlaceType() != null ? request.getPlaceType() : "") + ":" +
+                (request.getPageToken() != null ? request.getPageToken() : "") + ":" +
                 request.getPageSize()).toLowerCase();
     }
 
@@ -313,11 +318,14 @@ public class GooglePlacesService {
                 }
             }
 
+            String nextPageToken = root.has("nextPageToken") ? root.path("nextPageToken").asText(null) : null;
+
             return PlaceSearchResponse.builder()
                     .places(places)
                     .totalFound(places.size())
                     .cached(false)
                     .attribution(ATTRIBUTION_NOTICE)
+                    .nextPageToken(nextPageToken)
                     .build();
         } catch (Exception ex) {
             log.error("Error parsing Google Places search response JSON: {}", ex.getMessage());
@@ -326,6 +334,7 @@ public class GooglePlacesService {
                     .totalFound(0)
                     .cached(false)
                     .attribution(ATTRIBUTION_NOTICE)
+                    .nextPageToken(null)
                     .build();
         }
     }

@@ -35,4 +35,7 @@ public class PlaceSearchRequest {
     @Max(value = 20, message = "Page size cannot exceed 20")
     @Builder.Default
     private int pageSize = 10;
+
+    @Size(max = 500, message = "Page token is too long")
+    private String pageToken;
 }

@@ -23,4 +23,7 @@ public class DoctorResponse {
     private String bio;
     private String location;
     private BigDecimal consultationFee;
+    private Double latitude;
+    private Double longitude;
+    private String hospitalName;
 }
