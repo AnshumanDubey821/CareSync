@@ -81,11 +81,12 @@ public class GooglePlacesController {
 
     /**
      * Safe backend photo proxy: streams image bytes without exposing upstream Google API key.
+     * Publicly accessible for browser <img> tags while protected by per-IP rate limits and usage guards.
      */
     @GetMapping("/photos/{photoReference}")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<byte[]> getPlacePhoto(
             @PathVariable String photoReference,
+            @RequestParam(required = false) String placeId,
             @RequestParam(required = false) Integer maxHeightPx,
             @RequestParam(required = false) Integer maxWidthPx,
             @AuthenticationPrincipal UserDetails userDetails,
@@ -94,7 +95,7 @@ public class GooglePlacesController {
         String userId = userDetails != null ? userDetails.getUsername() : null;
         String clientIp = rateLimiterService.resolveClientIp(servletRequest);
 
-        byte[] photoBytes = googlePlacesService.getPlacePhoto(photoReference, maxHeightPx, maxWidthPx, userId, clientIp);
+        byte[] photoBytes = googlePlacesService.getPlacePhoto(photoReference, placeId, maxHeightPx, maxWidthPx, userId, clientIp);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)

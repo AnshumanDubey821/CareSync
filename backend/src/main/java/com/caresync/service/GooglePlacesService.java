@@ -53,6 +53,12 @@ public class GooglePlacesService {
     // In-memory cache for search results (30-minute expiration complying with Google's 30-day max policy)
     private final Cache<String, PlaceSearchResponse> searchCache;
 
+    // Cache mapping photo references to their full Google Places photo names
+    private final Cache<String, String> photoResourceNameCache;
+
+    // In-memory cache for photo image bytes (24 hours)
+    private final Cache<String, byte[]> photoByteCache;
+
     public static final String ATTRIBUTION_NOTICE =
             "Places data provided by Google Places (New). Powered by CareSync Healthcare Network.";
 
@@ -72,6 +78,16 @@ public class GooglePlacesService {
         this.searchCache = Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(30))
                 .maximumSize(1000)
+                .build();
+
+        this.photoResourceNameCache = Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofHours(2))
+                .maximumSize(5000)
+                .build();
+
+        this.photoByteCache = Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofHours(24))
+                .maximumSize(500)
                 .build();
     }
 
@@ -180,21 +196,41 @@ public class GooglePlacesService {
     /**
      * Proxies photo media requests so the frontend never directly calls Google with the API key.
      */
-    public byte[] getPlacePhoto(String photoReference, Integer maxHeightPx, Integer maxWidthPx, String userId, String clientIp) {
+    public byte[] getPlacePhoto(String photoReference, String placeId, Integer maxHeightPx, Integer maxWidthPx, String userId, String clientIp) {
         validateConfiguration();
 
-        if (!StringUtils.hasText(photoReference) || photoReference.contains("..") || photoReference.contains("/")) {
+        if (!StringUtils.hasText(photoReference) || photoReference.contains("..")) {
             throw new IllegalArgumentException("Invalid photo reference format.");
         }
 
-        // Apply strict photo-specific rate limiting (5 per minute per user)
+        String cacheKey = (StringUtils.hasText(placeId) ? placeId + ":" : "") + photoReference + ":" + maxHeightPx + ":" + maxWidthPx;
+        byte[] cachedBytes = photoByteCache.getIfPresent(cacheKey);
+        if (cachedBytes != null) {
+            return cachedBytes;
+        }
+
+        // Apply strict photo-specific rate limiting (5 per minute per IP / user)
         rateLimiterService.checkRateLimit(userId, clientIp, true);
         usageGuardService.checkAndIncrementUsage("photo");
 
         int h = maxHeightPx != null ? Math.min(800, Math.max(50, maxHeightPx)) : 400;
         int w = maxWidthPx != null ? Math.min(800, Math.max(50, maxWidthPx)) : 400;
 
-        String url = properties.getBaseUrl() + "/" + photoReference + "/media?maxHeightPx=" + h + "&maxWidthPx=" + w + "&skipHttpRedirect=true";
+        String resourceName = null;
+        if (StringUtils.hasText(placeId)) {
+            resourceName = photoResourceNameCache.getIfPresent(placeId + ":" + photoReference);
+            if (resourceName == null) {
+                resourceName = "places/" + placeId + "/photos/" + photoReference;
+            }
+        }
+        if (resourceName == null) {
+            resourceName = photoResourceNameCache.getIfPresent(photoReference);
+        }
+        if (resourceName == null) {
+            resourceName = photoReference;
+        }
+
+        String url = properties.getBaseUrl() + "/" + resourceName + "/media?maxHeightPx=" + h + "&maxWidthPx=" + w + "&skipHttpRedirect=true";
         HttpHeaders headers = createSecureHeaders(null);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
@@ -206,7 +242,11 @@ public class GooglePlacesService {
             if (StringUtils.hasText(photoUri)) {
                 // Fetch actual photo bytes from Google's CDN photoUri (which does not require the API key)
                 ResponseEntity<byte[]> imageResponse = restTemplate.getForEntity(photoUri, byte[].class);
-                return imageResponse.getBody();
+                byte[] bytes = imageResponse.getBody();
+                if (bytes != null) {
+                    photoByteCache.put(cacheKey, bytes);
+                }
+                return bytes;
             }
             throw new GooglePlacesApiException(HttpStatus.NOT_FOUND, "Photo not available.");
         } catch (HttpClientErrorException ex) {
@@ -216,6 +256,10 @@ public class GooglePlacesService {
             log.error("Error retrieving place photo [{}]: {}", photoReference, ex.getMessage());
             throw new GooglePlacesApiException(HttpStatus.BAD_GATEWAY, "Unable to load photo from upstream service.");
         }
+    }
+
+    public byte[] getPlacePhoto(String photoReference, Integer maxHeightPx, Integer maxWidthPx, String userId, String clientIp) {
+        return getPlacePhoto(photoReference, null, maxHeightPx, maxWidthPx, userId, clientIp);
     }
 
     private void validateConfiguration() {
@@ -311,6 +355,10 @@ public class GooglePlacesService {
                 String photoName = photo.path("name").asText(); // format: places/{placeId}/photos/{photoId}
                 if (StringUtils.hasText(photoName)) {
                     String photoRef = photoName.substring(photoName.lastIndexOf('/') + 1);
+                    photoResourceNameCache.put(photoRef, photoName);
+                    if (StringUtils.hasText(id)) {
+                        photoResourceNameCache.put(id + ":" + photoRef, photoName);
+                    }
                     photoUrls.add("/api/places/photos/" + photoRef);
                 }
             }

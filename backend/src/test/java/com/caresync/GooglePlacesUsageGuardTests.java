@@ -39,7 +39,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Transactional
 public class GooglePlacesUsageGuardTests {
 
     @Autowired
@@ -156,6 +155,7 @@ public class GooglePlacesUsageGuardTests {
     @DisplayName("Concurrent requests cannot exceed the configured application-level limit")
     void testUsageGuard_concurrencyProtection_enforcesLimit() throws InterruptedException {
         int threads = 15;
+        usageRepository.deleteAll();
         properties.getMonthlyGuard().setHardLimit(5); // Hard limit 5, but 15 concurrent threads try to consume
 
         ExecutorService executor = Executors.newFixedThreadPool(threads);

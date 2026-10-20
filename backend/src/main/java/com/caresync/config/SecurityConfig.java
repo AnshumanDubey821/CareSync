@@ -83,7 +83,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/v1/auth/**", "/oauth2/**", "/login/oauth2/**", "/api/v1/health", "/error").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/doctors", "/api/doctors/{id}", "/api/doctors/{id}/availability", "/api/doctors/{id}/available-slots").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/places/status").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/places/status", "/api/places/photos/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/places/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/places/**").authenticated()

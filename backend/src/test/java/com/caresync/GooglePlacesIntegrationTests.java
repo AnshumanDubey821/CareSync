@@ -269,4 +269,37 @@ public class GooglePlacesIntegrationTests {
             googlePlacesProperties.setApiKey(originalKey);
         }
     }
+
+    @Test
+    @DisplayName("Photo proxy streams JPEG bytes from Google CDN and shields API key")
+    void testGetPlacePhoto_streamsBytesSafely() throws Exception {
+        String googleMediaJson = """
+        {
+          "name": "places/ChIJN1t_tDeuEmsRUsoyG83frY4/photos/photoRef123/media",
+          "photoUri": "https://lh3.googleusercontent.com/test-cdn-photo-url"
+        }
+        """;
+        byte[] dummyImageBytes = new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00, 0x11 };
+
+        // 1. Upstream call to Google Places photo media endpoint
+        mockServer.expect(ExpectedCount.once(), MockRestRequestMatchers.requestTo(containsString("/photoRef123/media")))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header("X-Goog-Api-Key", "test-secret-places-key-do-not-expose"))
+                .andRespond(MockRestResponseCreators.withSuccess(googleMediaJson, MediaType.APPLICATION_JSON));
+
+        // 2. Outbound call to Google's CDN photoUri (which does not carry the API key)
+        mockServer.expect(ExpectedCount.once(), MockRestRequestMatchers.requestTo("https://lh3.googleusercontent.com/test-cdn-photo-url"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andRespond(MockRestResponseCreators.withSuccess(dummyImageBytes, MediaType.IMAGE_JPEG));
+
+        mockMvc.perform(get("/api/places/photos/photoRef123")
+                        .param("maxHeightPx", "400")
+                        .param("maxWidthPx", "400"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.header().string("Content-Type", "image/jpeg"))
+                .andExpect(MockMvcResultMatchers.header().string("Cache-Control", containsString("max-age=86400")))
+                .andExpect(MockMvcResultMatchers.content().bytes(dummyImageBytes));
+
+        mockServer.verify();
+    }
 }

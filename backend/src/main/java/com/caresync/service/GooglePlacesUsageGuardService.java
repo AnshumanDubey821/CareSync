@@ -61,12 +61,15 @@ public class GooglePlacesUsageGuardService {
                     return usageRepository.saveAndFlush(newRecord);
                 });
 
+        usage.setWarningThreshold(configuredWarning);
+        usage.setHardLimit(configuredHard);
+
         // Check if hard cutoff has already been reached
-        if (usage.getRequestCount() >= usage.getHardLimit()) {
+        if (usage.getRequestCount() >= configuredHard) {
             log.error("Google Places API hard limit exceeded for month {}: count={}/limit={}. Operation [{}] blocked.",
-                    currentYearMonth, usage.getRequestCount(), usage.getHardLimit(), operation);
+                    currentYearMonth, usage.getRequestCount(), configuredHard, operation);
             throw new GooglePlacesMonthlyLimitExceededException(
-                    "Monthly Google Places API request limit has been reached (" + usage.getHardLimit() +
+                    "Monthly Google Places API request limit has been reached (" + configuredHard +
                     " requests). Further requests are temporarily suspended to prevent unexpected charges. " +
                     "Please contact the system administrator.");
         }
@@ -81,7 +84,7 @@ public class GooglePlacesUsageGuardService {
 
         usage.setRequestCount(nextCount);
         usage.setUpdatedAt(LocalDateTime.now());
-        return usageRepository.save(usage);
+        return usageRepository.saveAndFlush(usage);
     }
 
     /**
