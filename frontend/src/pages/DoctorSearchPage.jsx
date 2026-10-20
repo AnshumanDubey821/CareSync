@@ -210,9 +210,13 @@ const DoctorSearchPage = () => {
   };
 
   const handleSelectFacilityForDoctorSearch = (facilityName) => {
-    setLocation(facilityName);
+    const cleanFacilityName = facilityName.includes('|')
+      ? facilityName.split('|')[0].trim()
+      : facilityName.trim();
+
+    setLocation(cleanFacilityName);
     setActiveTab('doctors');
-    fetchDoctors({ location: facilityName });
+    fetchDoctors({ location: cleanFacilityName });
 
     // Smooth scroll down to doctor results
     setTimeout(() => {

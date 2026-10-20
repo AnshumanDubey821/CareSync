@@ -25,12 +25,70 @@ public class DoctorService {
     public List<DoctorResponse> searchDoctors(String name, String specialization, String location) {
         String nameFilter = (name != null && !name.trim().isEmpty()) ? name.trim() : null;
         String specFilter = (specialization != null && !specialization.trim().isEmpty()) ? specialization.trim() : null;
-        String locFilter = (location != null && !location.trim().isEmpty()) ? location.trim() : null;
+        String locFilter = normalizeLocation(location);
 
         List<Doctor> doctors = doctorRepository.searchDoctors(nameFilter, specFilter, locFilter);
+
+        // Fallback: If no doctors match the exact location string, attempt keyword matching on known hospital networks or city
+        if (doctors.isEmpty() && locFilter != null) {
+            String fallbackKeyword = extractLocationKeyword(locFilter);
+            if (fallbackKeyword != null && !fallbackKeyword.equalsIgnoreCase(locFilter)) {
+                doctors = doctorRepository.searchDoctors(nameFilter, specFilter, fallbackKeyword);
+            }
+        }
+
         return doctors.stream()
                 .map(this::mapToDoctorResponse)
                 .collect(Collectors.toList());
+    }
+
+    private String normalizeLocation(String rawLocation) {
+        if (rawLocation == null || rawLocation.trim().isEmpty()) {
+            return null;
+        }
+        String loc = rawLocation.trim();
+        // Handle Delhi NCR alias
+        if (loc.equalsIgnoreCase("Delhi NCR") || loc.equalsIgnoreCase("Delhi-NCR")) {
+            return "Delhi";
+        }
+        if (loc.equalsIgnoreCase("Bangalore")) {
+            return "Bengaluru";
+        }
+        // If Google Places title contains pipe (e.g. "Apollo Hospitals | Best Hospital in Bannerghatta Road, Bengaluru")
+        if (loc.contains("|")) {
+            String primary = loc.split("\\|")[0].trim();
+            if (!primary.isEmpty()) {
+                return primary;
+            }
+        }
+        return loc;
+    }
+
+    private String extractLocationKeyword(String location) {
+        if (location == null) return null;
+        String lower = location.toLowerCase();
+
+        // Check common hospital brands
+        if (lower.contains("apollo")) return "Apollo";
+        if (lower.contains("fortis")) return "Fortis";
+        if (lower.contains("max super") || lower.contains("max health") || lower.contains("max hospital")) return "Max";
+        if (lower.contains("manipal")) return "Manipal";
+        if (lower.contains("medanta")) return "Medanta";
+        if (lower.contains("kokilaben")) return "Kokilaben";
+        if (lower.contains("ruby hall")) return "Ruby Hall";
+        if (lower.contains("ganga ram")) return "Ganga Ram";
+
+        // Check major cities
+        if (lower.contains("delhi")) return "Delhi";
+        if (lower.contains("bengaluru") || lower.contains("bangalore")) return "Bengaluru";
+        if (lower.contains("mumbai")) return "Mumbai";
+        if (lower.contains("hyderabad")) return "Hyderabad";
+        if (lower.contains("chennai")) return "Chennai";
+        if (lower.contains("pune")) return "Pune";
+        if (lower.contains("kolkata")) return "Kolkata";
+        if (lower.contains("gurugram") || lower.contains("gurgaon")) return "Gurugram";
+
+        return null;
     }
 
     @Transactional(readOnly = true)

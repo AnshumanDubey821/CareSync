@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   Info,
   Layers,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 
 /**
@@ -26,19 +27,19 @@ const CITY_COORDINATES = {
   Hyderabad: { lat: 17.3850, lng: 78.4867, zoom: 12 },
   Chennai: { lat: 13.0827, lng: 80.2707, zoom: 12 },
   Pune: { lat: 18.5204, lng: 73.8567, zoom: 12 },
+  Kolkata: { lat: 22.5726, lng: 88.3639, zoom: 12 },
   India: { lat: 20.5937, lng: 78.9629, zoom: 5 }
 };
 
 /**
- * Custom SVG Marker Icon Generator for Google Maps
- * Creates a healthcare-branded teardrop pin with a medical cross
+ * Custom SVG Marker Icon Generator for Google Maps & Leaflet
  */
-const createMarkerIcon = (isSelected = false) => {
+const createMarkerSvgString = (isSelected = false) => {
   const pinColor = isSelected ? '#e11d48' : '#1e60f2'; // Rose-600 when selected, Primary-600 default
   const strokeColor = isSelected ? '#881337' : '#0d213f'; // Dark outline
   const scale = isSelected ? 1.25 : 1.0;
 
-  const svg = `
+  return `
     <svg xmlns="http://www.w3.org/2000/svg" width="${36 * scale}" height="${48 * scale}" viewBox="0 0 36 48">
       <defs>
         <filter id="pin-shadow" x="-20%" y="-10%" width="140%" height="140%">
@@ -48,11 +49,15 @@ const createMarkerIcon = (isSelected = false) => {
       <path d="M18 0 C8.06 0 0 8.06 0 18 C0 29.5 18 48 18 48 C18 48 36 29.5 36 18 C36 8.06 27.94 0 18 0 Z"
             fill="${pinColor}" stroke="${strokeColor}" stroke-width="1.5" filter="url(#pin-shadow)" />
       <circle cx="18" cy="18" r="11" fill="#ffffff" />
-      <!-- Medical Cross -->
       <rect x="15.5" y="10" width="5" height="16" rx="1.5" fill="${pinColor}" />
       <rect x="10" y="15.5" width="16" height="5" rx="1.5" fill="${pinColor}" />
     </svg>
   `;
+};
+
+const createGoogleMarkerIcon = (isSelected = false) => {
+  const svg = createMarkerSvgString(isSelected);
+  const scale = isSelected ? 1.25 : 1.0;
 
   return {
     url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
@@ -141,21 +146,48 @@ const GooglePlacesMap = ({
   error = null,
   height = 'h-[440px]',
   title = 'Interactive Clinic & Hospital Map',
-  subtitle = 'Real-time healthcare facility markers powered by Google Maps JavaScript API'
+  subtitle = 'Real-time healthcare facility markers powered by Google Places (New) coordinates'
 }) => {
   const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const markersRef = useRef([]);
+  const mapInstanceRef = useRef(null); // google.maps.Map OR L.Map
+  const markersRef = useRef([]); // google.maps.Marker[] OR L.Marker[]
   const infoWindowRef = useRef(null);
 
+  const [activeEngine, setActiveEngine] = useState('detecting'); // 'google' | 'leaflet' | 'detecting'
+  const [createdMarkersCount, setCreatedMarkersCount] = useState(0);
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+  const [isLeafletLoaded, setIsLeafletLoaded] = useState(false);
   const [scriptLoadError, setScriptLoadError] = useState(null);
   const [initError, setInitError] = useState(null);
   const [authError, setAuthError] = useState(false);
+  const [apiNotActivated, setApiNotActivated] = useState(false);
   const [activePlace, setActivePlace] = useState(null);
   const [mapType, setMapType] = useState('roadmap'); // 'roadmap' | 'satellite'
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+  // Intercept Google Maps error messages (e.g. ApiNotActivatedMapError) to switch to fallback tile engine
+  useEffect(() => {
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+      const msg = args.map((a) => (typeof a === 'string' ? a : (a?.message || ''))).join(' ');
+      if (
+        msg.includes('ApiNotActivatedMapError') ||
+        msg.includes('This API is not activated on your API project')
+      ) {
+        setApiNotActivated(true);
+        setActiveEngine('leaflet');
+      } else if (msg.includes('RefererNotAllowedMapError') || msg.includes('InvalidKeyMapError')) {
+        setAuthError(true);
+        setActiveEngine('leaflet');
+      }
+      originalConsoleError.apply(console, args);
+    };
+
+    return () => {
+      console.error = originalConsoleError;
+    };
+  }, []);
 
   // Synchronize internal activePlace when selectedPlaceId prop changes
   useEffect(() => {
@@ -165,21 +197,22 @@ const GooglePlacesMap = ({
     }
   }, [selectedPlaceId, places]);
 
-  // Load Google Maps JavaScript API script dynamically
+  // Load Google Maps JavaScript API script
   useEffect(() => {
     if (!apiKey) {
+      setActiveEngine('leaflet');
       return;
     }
 
-    // Register global auth failure listener
     window.gm_authFailure = () => {
-      console.warn('Google Maps API authentication failed: Check API key restrictions or billing.');
+      console.warn('Google Maps API authentication failed.');
       setAuthError(true);
+      setActiveEngine('leaflet');
     };
 
-    // If Google Maps API is already fully available on window
     if (window.google?.maps?.Map) {
       setIsScriptLoaded(true);
+      setActiveEngine((prev) => (prev === 'detecting' ? 'google' : prev));
       return;
     }
 
@@ -187,20 +220,20 @@ const GooglePlacesMap = ({
     if (existingScript) {
       if (window.google?.maps?.Map) {
         setIsScriptLoaded(true);
+        setActiveEngine((prev) => (prev === 'detecting' ? 'google' : prev));
       } else {
         existingScript.addEventListener('load', () => {
-          if (window.google?.maps?.Map) setIsScriptLoaded(true);
+          if (window.google?.maps?.Map) {
+            setIsScriptLoaded(true);
+            setActiveEngine((prev) => (prev === 'detecting' ? 'google' : prev));
+          }
         });
-        existingScript.addEventListener('error', () =>
-          setScriptLoadError('Failed to load Google Maps SDK')
-        );
       }
       return;
     }
 
     const script = document.createElement('script');
     script.id = 'google-maps-js-sdk';
-    // Load standard Google Maps JavaScript API without &loading=async to ensure synchronous namespace population
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
     script.async = true;
     script.defer = true;
@@ -208,49 +241,87 @@ const GooglePlacesMap = ({
     script.onload = () => {
       if (window.google?.maps?.Map) {
         setIsScriptLoaded(true);
+        setActiveEngine((prev) => (prev === 'detecting' ? 'google' : prev));
       } else {
-        // Poll briefly in case of slight delay
         const checkTimer = setInterval(() => {
           if (window.google?.maps?.Map) {
             clearInterval(checkTimer);
             setIsScriptLoaded(true);
+            setActiveEngine((prev) => (prev === 'detecting' ? 'google' : prev));
           }
         }, 50);
         setTimeout(() => clearInterval(checkTimer), 3000);
       }
     };
 
-    script.onerror = (e) => {
-      console.error('Error loading Google Maps JavaScript API:', e);
-      setScriptLoadError('Unable to connect to Google Maps servers. Check network connection.');
+    script.onerror = () => {
+      setScriptLoadError('Unable to load Google Maps SDK');
+      setActiveEngine('leaflet');
     };
 
     document.head.appendChild(script);
-
-    return () => {
-      // Keep script in head to prevent reload loops
-    };
   }, [apiKey]);
 
-  // Initialize Map Instance
+  // Dynamically load Leaflet for guaranteed tile rendering fallback
   useEffect(() => {
-    // Ensure Google Maps API Map class is strictly defined before running effect
-    if (!isScriptLoaded || !mapContainerRef.current || !window.google?.maps?.Map || authError) {
+    if (activeEngine !== 'leaflet') return;
+
+    if (window.L) {
+      setIsLeafletLoaded(true);
       return;
     }
 
-    if (!mapInstanceRef.current) {
-      try {
-        const cityKey = activeCity || 'Bengaluru';
-        const initialCenter = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
+    // Add Leaflet CSS
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
 
-        // Safely omit control-position overrides so Google Maps uses its standard, reliable default positions
+    // Add Leaflet JS
+    if (!document.getElementById('leaflet-js')) {
+      const script = document.createElement('script');
+      script.id = 'leaflet-js';
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.async = true;
+      script.onload = () => setIsLeafletLoaded(true);
+      script.onerror = () => setInitError('Could not load map tile engine.');
+      document.head.appendChild(script);
+    } else {
+      const existing = document.getElementById('leaflet-js');
+      existing.addEventListener('load', () => setIsLeafletLoaded(true));
+    }
+  }, [activeEngine]);
+
+  // Initialize Map Instance (Google Maps or Leaflet)
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    // Clean up existing map instance if engine switches
+    if (mapInstanceRef.current && typeof mapInstanceRef.current.remove === 'function') {
+      try {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const cityKey = activeCity || 'Bengaluru';
+    const initialCenter = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
+
+    // ENGINE A: GOOGLE MAPS
+    if (activeEngine === 'google' && isScriptLoaded && window.google?.maps?.Map && !authError && !apiNotActivated) {
+      try {
+        mapContainerRef.current.innerHTML = '';
         const map = new window.google.maps.Map(mapContainerRef.current, {
           center: { lat: initialCenter.lat, lng: initialCenter.lng },
           zoom: initialCenter.zoom,
           styles: MAP_STYLES,
           mapTypeId: mapType,
-          mapTypeControl: false, // We provide a custom styled button
+          mapTypeControl: false,
           streetViewControl: true,
           zoomControl: true,
           fullscreenControl: true
@@ -261,140 +332,220 @@ const GooglePlacesMap = ({
           infoWindowRef.current = new window.google.maps.InfoWindow();
         }
 
-        // Close floating card / info window when clicking elsewhere on map canvas
         map.addListener('click', () => {
           setActivePlace(null);
           if (infoWindowRef.current) infoWindowRef.current.close();
         });
+
+        // Trigger resize after mounting to ensure full tile rendering
+        setTimeout(() => {
+          if (window.google?.maps?.event) {
+            window.google.maps.event.trigger(map, 'resize');
+          }
+        }, 200);
       } catch (err) {
-        console.error('Google Maps initialization failed:', err);
-        setInitError(err.message || 'Failed to initialize map canvas');
+        console.warn('Google Maps init threw error, switching to OpenStreetMap tiles:', err);
+        setActiveEngine('leaflet');
       }
     }
-  }, [isScriptLoaded, authError, activeCity, mapType]);
 
-  // Handle Map Type Toggle (Roadmap vs Satellite)
+    // ENGINE B: LEAFLET (GUARANTEED OPENSTREETMAP REAL TILES)
+    if (activeEngine === 'leaflet' && isLeafletLoaded && window.L) {
+      try {
+        mapContainerRef.current.innerHTML = '';
+        const L = window.L;
+        const map = L.map(mapContainerRef.current, {
+          center: [initialCenter.lat, initialCenter.lng],
+          zoom: initialCenter.zoom,
+          zoomControl: true
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors • CareSync Healthcare Network'
+        }).addTo(map);
+
+        map.on('click', () => {
+          setActivePlace(null);
+        });
+
+        mapInstanceRef.current = map;
+
+        // Invalidate size to guarantee immediate full canvas tile coverage
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 150);
+      } catch (err) {
+        console.error('Leaflet initialization failed:', err);
+        setInitError('Failed to initialize map canvas.');
+      }
+    }
+  }, [activeEngine, isScriptLoaded, isLeafletLoaded, authError, apiNotActivated, activeCity]);
+
+  // Handle Map Type Toggle (Roadmap vs Satellite) for Google Maps
   const toggleMapType = () => {
     if (!mapInstanceRef.current) return;
-    try {
+    if (activeEngine === 'google' && typeof mapInstanceRef.current.setMapTypeId === 'function') {
       const nextType = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
       mapInstanceRef.current.setMapTypeId(nextType);
       setMapType(nextType);
-    } catch (e) {
-      console.warn('Could not toggle map type:', e);
     }
   };
 
   // Center map on specified coordinates
   const handleRecenter = useCallback(() => {
-    if (!mapInstanceRef.current || !window.google?.maps) return;
+    if (!mapInstanceRef.current) return;
+    const cityKey = activeCity || 'Bengaluru';
+    const coords = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
+
     try {
-      const cityKey = activeCity || 'Bengaluru';
-      const coords = CITY_COORDINATES[cityKey] || CITY_COORDINATES.Bengaluru;
-      mapInstanceRef.current.panTo({ lat: coords.lat, lng: coords.lng });
-      mapInstanceRef.current.setZoom(coords.zoom);
+      if (activeEngine === 'google' && typeof mapInstanceRef.current.panTo === 'function') {
+        mapInstanceRef.current.panTo({ lat: coords.lat, lng: coords.lng });
+        mapInstanceRef.current.setZoom(coords.zoom);
+      } else if (activeEngine === 'leaflet' && typeof mapInstanceRef.current.setView === 'function') {
+        mapInstanceRef.current.setView([coords.lat, coords.lng], coords.zoom);
+      }
     } catch (e) {
       console.warn('Could not recenter map:', e);
     }
-  }, [activeCity]);
+  }, [activeCity, activeEngine]);
 
-  // Render & Update Markers when Places change
+  // Render & Update Markers when Places change (Strictly track createdMarkersCount)
   useEffect(() => {
-    if (
-      !mapInstanceRef.current ||
-      !window.google?.maps?.Marker ||
-      !window.google?.maps?.LatLngBounds ||
-      !isScriptLoaded ||
-      authError
-    ) {
-      return;
-    }
+    if (!mapInstanceRef.current) return;
 
-    try {
-      const map = mapInstanceRef.current;
+    // Filter places that have genuine numeric latitude and longitude
+    const validPlaces = places.filter(
+      (p) =>
+        typeof p.latitude === 'number' &&
+        typeof p.longitude === 'number' &&
+        !isNaN(p.latitude) &&
+        !isNaN(p.longitude)
+    );
 
-      // Clear existing markers safely
-      markersRef.current.forEach((m) => {
-        if (m && typeof m.setMap === 'function') {
-          m.setMap(null);
+    // MODE 1: GOOGLE MAPS MARKERS
+    if (activeEngine === 'google' && window.google?.maps?.Marker && window.google?.maps?.LatLngBounds) {
+      try {
+        const map = mapInstanceRef.current;
+
+        // Clear existing markers
+        markersRef.current.forEach((m) => {
+          if (m && typeof m.setMap === 'function') m.setMap(null);
+        });
+        markersRef.current = [];
+
+        if (validPlaces.length === 0) {
+          setCreatedMarkersCount(0);
+          if (activeCity && CITY_COORDINATES[activeCity]) {
+            const c = CITY_COORDINATES[activeCity];
+            map.panTo({ lat: c.lat, lng: c.lng });
+            map.setZoom(c.zoom);
+          }
+          return;
         }
-      });
-      markersRef.current = [];
 
-      // Filter places that have genuine numeric latitude and longitude
-      const validPlaces = places.filter(
-        (p) =>
-          typeof p.latitude === 'number' &&
-          typeof p.longitude === 'number' &&
-          !isNaN(p.latitude) &&
-          !isNaN(p.longitude)
-      );
+        const bounds = new window.google.maps.LatLngBounds();
 
-      if (validPlaces.length === 0) {
-        // If city is specified, center on known city coordinates
-        if (activeCity && CITY_COORDINATES[activeCity]) {
-          const c = CITY_COORDINATES[activeCity];
-          map.panTo({ lat: c.lat, lng: c.lng });
-          map.setZoom(c.zoom);
-        }
-        return;
-      }
+        validPlaces.forEach((place) => {
+          const position = { lat: place.latitude, lng: place.longitude };
+          const isSelected = activePlace?.id === place.id;
 
-      const bounds = new window.google.maps.LatLngBounds();
+          const marker = new window.google.maps.Marker({
+            position,
+            map,
+            title: place.displayName,
+            icon: createGoogleMarkerIcon(isSelected),
+            zIndex: isSelected ? 999 : 10
+          });
 
-      validPlaces.forEach((place) => {
-        const position = { lat: place.latitude, lng: place.longitude };
-        const isSelected = activePlace?.id === place.id;
+          marker.addListener('click', () => {
+            setActivePlace(place);
+            onSelectPlace(place);
+            map.panTo(position);
+            map.setZoom(Math.max(map.getZoom(), 15));
+          });
 
-        const marker = new window.google.maps.Marker({
-          position,
-          map,
-          title: place.displayName,
-          icon: createMarkerIcon(isSelected),
-          zIndex: isSelected ? 999 : 10,
-          animation:
-            isSelected && window.google?.maps?.Animation?.BOUNCE
-              ? window.google.maps.Animation.BOUNCE
-              : undefined
+          markersRef.current.push(marker);
+          bounds.extend(position);
         });
 
-        if (isSelected) {
-          setTimeout(() => {
-            if (marker && typeof marker.setAnimation === 'function') {
-              marker.setAnimation(null);
-            }
-          }, 1400);
+        // Set actual count of markers successfully created
+        setCreatedMarkersCount(markersRef.current.length);
+
+        if (markersRef.current.length === 1) {
+          map.setCenter({ lat: validPlaces[0].latitude, lng: validPlaces[0].longitude });
+          map.setZoom(15);
+        } else if (markersRef.current.length > 1) {
+          map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+        }
+      } catch (err) {
+        console.error('Error updating Google Map markers:', err);
+      }
+    }
+
+    // MODE 2: LEAFLET MARKERS (REAL OPENSTREETMAP TILES)
+    if (activeEngine === 'leaflet' && window.L && typeof mapInstanceRef.current.addLayer === 'function') {
+      try {
+        const L = window.L;
+        const map = mapInstanceRef.current;
+
+        // Clear existing markers
+        markersRef.current.forEach((m) => {
+          if (m && typeof m.remove === 'function') m.remove();
+        });
+        markersRef.current = [];
+
+        if (validPlaces.length === 0) {
+          setCreatedMarkersCount(0);
+          if (activeCity && CITY_COORDINATES[activeCity]) {
+            const c = CITY_COORDINATES[activeCity];
+            map.setView([c.lat, c.lng], c.zoom);
+          }
+          return;
         }
 
-        // Marker Click Event
-        marker.addListener('click', () => {
-          setActivePlace(place);
-          onSelectPlace(place);
+        const latLngs = [];
 
-          map.panTo(position);
-          map.setZoom(Math.max(map.getZoom(), 15));
+        validPlaces.forEach((place) => {
+          const latLng = [place.latitude, place.longitude];
+          const isSelected = activePlace?.id === place.id;
+
+          const customIcon = L.divIcon({
+            className: 'custom-leaflet-marker',
+            html: createMarkerSvgString(isSelected),
+            iconSize: isSelected ? [45, 60] : [36, 48],
+            iconAnchor: isSelected ? [22, 60] : [18, 48]
+          });
+
+          const marker = L.marker(latLng, { icon: customIcon, title: place.displayName });
+
+          marker.on('click', () => {
+            setActivePlace(place);
+            onSelectPlace(place);
+            map.setView(latLng, Math.max(map.getZoom(), 15));
+          });
+
+          marker.addTo(map);
+          markersRef.current.push(marker);
+          latLngs.push(latLng);
         });
 
-        markersRef.current.push(marker);
-        bounds.extend(position);
-      });
+        // Set actual count of markers successfully created
+        setCreatedMarkersCount(markersRef.current.length);
 
-      // Auto-fit bounds to display all valid markers
-      if (validPlaces.length === 1) {
-        map.setCenter({ lat: validPlaces[0].latitude, lng: validPlaces[0].longitude });
-        map.setZoom(15);
-      } else if (validPlaces.length > 1) {
-        map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+        if (latLngs.length === 1) {
+          map.setView(latLngs[0], 15);
+        } else if (latLngs.length > 1) {
+          const bounds = L.latLngBounds(latLngs);
+          map.fitBounds(bounds, { padding: [50, 50] });
+        }
+
+        map.invalidateSize();
+      } catch (err) {
+        console.error('Error updating Leaflet markers:', err);
       }
-    } catch (err) {
-      console.error('Error updating map markers:', err);
     }
-  }, [places, activePlace, isScriptLoaded, authError, activeCity, onSelectPlace]);
-
-  // Valid places count
-  const validPlacesCount = places.filter(
-    (p) => typeof p.latitude === 'number' && typeof p.longitude === 'number'
-  ).length;
+  }, [places, activePlace, activeEngine, activeCity, onSelectPlace]);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200/90 shadow-card overflow-hidden">
@@ -409,10 +560,10 @@ const GooglePlacesMap = ({
               <h2 className="text-sm sm:text-base font-extrabold text-navy-900 tracking-tight">
                 {title}
               </h2>
-              {validPlacesCount > 0 && (
+              {createdMarkersCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary-100 text-primary-700 border border-primary-200 flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-primary-600" />
-                  {validPlacesCount} Pins Plotted
+                  {createdMarkersCount} Pins Plotted
                 </span>
               )}
             </div>
@@ -422,30 +573,30 @@ const GooglePlacesMap = ({
 
         {/* Map Control Actions */}
         <div className="flex items-center gap-2">
-          {apiKey && !authError && !initError && isScriptLoaded && (
-            <>
-              <button
-                type="button"
-                onClick={toggleMapType}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-xs transition-colors"
-                title="Toggle Satellite Imagery"
-              >
-                <Layers className="w-3.5 h-3.5 text-primary-600" />
-                <span className="hidden sm:inline">
-                  {mapType === 'roadmap' ? 'Satellite' : 'Map'}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={handleRecenter}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-xs transition-colors"
-                title="Recenter Map"
-              >
-                <Navigation className="w-3.5 h-3.5 text-primary-600" />
-                <span className="hidden sm:inline">Recenter</span>
-              </button>
-            </>
+          {activeEngine === 'google' && (
+            <button
+              type="button"
+              onClick={toggleMapType}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-xs transition-colors"
+              title="Toggle Satellite Imagery"
+            >
+              <Layers className="w-3.5 h-3.5 text-primary-600" />
+              <span className="hidden sm:inline">
+                {mapType === 'roadmap' ? 'Satellite' : 'Map'}
+              </span>
+            </button>
           )}
+
+          <button
+            type="button"
+            onClick={handleRecenter}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-xs transition-colors"
+            title="Recenter Map"
+          >
+            <Navigation className="w-3.5 h-3.5 text-primary-600" />
+            <span className="hidden sm:inline">Recenter</span>
+          </button>
+
           {activeCity && (
             <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
               {activeCity}
@@ -454,8 +605,34 @@ const GooglePlacesMap = ({
         </div>
       </div>
 
-      {/* Main Map Canvas / State Area */}
-      <div className={`relative w-full ${height} bg-slate-100 overflow-hidden`}>
+      {/* GCP Setup Alert when Maps JavaScript API needs activation */}
+      {(apiNotActivated || authError) && (
+        <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+          <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-bold">Google Cloud Notice: </span>
+            <span>
+              <strong>Places API (New)</strong> is active and delivering verified medical facility coordinates. To enable Google vector tiles instead of OpenStreetMap tiles, activate{' '}
+              <a
+                href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-bold text-amber-800 hover:text-amber-950 inline-flex items-center gap-1"
+              >
+                Maps JavaScript API in Google Cloud Console
+                <ExternalLink className="w-3 h-3 inline" />
+              </a>
+              .
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Main Map Canvas Area with guaranteed non-zero measurable dimensions */}
+      <div
+        className={`relative w-full ${height} bg-slate-100 overflow-hidden`}
+        style={{ minHeight: '420px' }}
+      >
         {/* Loading Overlay */}
         {isLoading && (
           <div className="absolute inset-0 bg-white/75 backdrop-blur-xs z-30 flex flex-col items-center justify-center gap-3">
@@ -466,121 +643,22 @@ const GooglePlacesMap = ({
           </div>
         )}
 
-        {/* Case 1: Missing Browser API Key Banner & Fallback Coordinate Explorer */}
-        {!apiKey && (
-          <div className="h-full w-full overflow-y-auto p-6 flex flex-col justify-between bg-gradient-to-b from-ice-50 to-white">
-            <div className="max-w-xl mx-auto text-center space-y-3 py-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto border border-amber-200 shadow-xs">
-                <Info className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-extrabold text-navy-900">
-                Google Maps JavaScript API Key Required
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                To render the live interactive map canvas directly in your browser, configure your
-                dedicated browser API key in <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono text-slate-800">frontend/.env</code>.
-              </p>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs text-left space-y-2 text-xs">
-                <span className="font-bold text-navy-900 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" /> Recommended Setup Steps:
-                </span>
-                <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1 text-[11px] leading-relaxed">
-                  <li>
-                    Open <strong>Google Cloud Console &gt; APIs &amp; Services &gt; Credentials</strong>.
-                  </li>
-                  <li>
-                    Create an API key with <strong>HTTP Referrer restriction</strong> set to{' '}
-                    <code className="bg-slate-100 px-1 rounded text-primary-700">http://localhost:5173/*</code>.
-                  </li>
-                  <li>
-                    Under API Restrictions, enable <strong>Maps JavaScript API</strong>.
-                  </li>
-                  <li>
-                    Add <code className="bg-slate-100 px-1 rounded text-primary-700">VITE_GOOGLE_MAPS_API_KEY=your_key</code> to{' '}
-                    <code className="bg-slate-100 px-1 rounded">frontend/.env</code> and restart Vite.
-                  </li>
-                </ol>
-              </div>
-            </div>
-
-            {/* Live Facility Coordinates List as graceful functional fallback */}
-            {validPlacesCount > 0 && (
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                  Retrieved Clinic Coordinates ({validPlacesCount} live locations):
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {places.slice(0, 6).map((place) => (
-                    <div
-                      key={place.id}
-                      className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs hover:border-primary-300 transition-colors flex items-start justify-between gap-2"
-                    >
-                      <div className="min-w-0">
-                        <span className="font-bold text-navy-900 text-xs truncate block">
-                          {place.displayName}
-                        </span>
-                        <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                          {place.latitude?.toFixed(4)}° N, {place.longitude?.toFixed(4)}° E
-                        </div>
-                      </div>
-                      {place.googleMapsUri && (
-                        <a
-                          href={place.googleMapsUri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary-600 hover:text-navy-900 p-1"
-                          title="Open in Google Maps"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Case 2: Authentication Error (gm_authFailure) */}
-        {apiKey && authError && (
-          <div className="h-full w-full flex flex-col items-center justify-center p-6 bg-rose-50/50 text-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center border border-rose-200 shadow-xs">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-extrabold text-navy-900">
-                Google Maps Authentication Notice
-              </h3>
-              <p className="text-xs text-rose-700 max-w-md mx-auto mt-1 leading-relaxed">
-                Google Maps JS API rejected the current key. Ensure the <strong>Maps JavaScript API</strong> is
-                enabled in your Google Cloud Project and that your HTTP referrer matches{' '}
-                <code className="bg-rose-100 px-1 py-0.5 rounded font-mono">http://localhost:5173/*</code>.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Case 3: Script Load Error or Init Error */}
-        {apiKey && !authError && (scriptLoadError || initError) && (
-          <div className="h-full w-full flex flex-col items-center justify-center p-6 text-center space-y-3 bg-amber-50/40">
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center border border-amber-200">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-navy-900">Map Canvas Notice</h3>
-              <p className="text-xs text-slate-600 max-w-sm mt-1">
-                {scriptLoadError || initError || 'Google Maps canvas could not be initialized in this browser.'}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Case 4: Google Maps Canvas Div */}
-        {apiKey && !authError && !initError && (
-          <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: '100%' }} />
-        )}
+        {/* Map Canvas Div with explicit absolute stretch to prevent grey collapse */}
+        <div
+          ref={mapContainerRef}
+          className="w-full h-full"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100%',
+            height: '100%',
+            minHeight: '420px',
+            zIndex: 1
+          }}
+        />
 
         {/* Floating Active Place Details Card (Overlay) */}
         {activePlace && (
@@ -668,7 +746,7 @@ const GooglePlacesMap = ({
 
         {/* Empty Places Notice (when loaded with 0 results) */}
         {!isLoading && places.length === 0 && !error && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4">
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4 z-10">
             <div className="bg-white/95 backdrop-blur-xs p-4 rounded-2xl border border-slate-200 shadow-md text-center max-w-sm pointer-events-auto space-y-1">
               <Building2 className="w-6 h-6 text-slate-400 mx-auto" />
               <h4 className="text-xs font-bold text-navy-900">No Facilities in Current View</h4>
@@ -686,15 +764,17 @@ const GooglePlacesMap = ({
           <span className="flex items-center gap-1 font-semibold text-slate-600">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> NMC &amp; Google Verified Coordinates
           </span>
-          {validPlacesCount > 0 && (
+          {createdMarkersCount > 0 && (
             <span className="text-slate-400">
-              • Showing {validPlacesCount} facilities
+              • {createdMarkersCount} live locations plotted
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-slate-400 text-[10px]">
-            Maps JavaScript API • Places API (New)
+            {activeEngine === 'google'
+              ? 'Maps JavaScript API • Places API (New)'
+              : 'Interactive OpenStreetMap Tiles • Places API (New)'}
           </span>
         </div>
       </div>
