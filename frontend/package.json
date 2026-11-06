@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "node --test tests/doctorSearch.test.mjs tests/navigation.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { doctorService } from '../services/doctorService';
-import { placeService } from '../services/placeService';
 import GooglePlacesMap, { MapErrorBoundary } from '../components/GooglePlacesMap';
+import { useDoctorSearch } from '../hooks/useDoctorSearch';
+import {
+  INDIAN_CITIES,
+  SPECIALIZATIONS_LIST,
+  PLACE_TYPES_LIST
+} from '../constants/medicalFacilities';
 import {
   Search,
   MapPin,
   Stethoscope,
-  Award,
-  Calendar,
   ArrowRight,
-  Activity,
   Filter,
   CheckCircle2,
   Clock,
@@ -23,52 +24,8 @@ import {
   Info,
   ShieldCheck,
   Map as MapIcon,
-  Eye,
-  EyeOff,
-  Navigation,
-  Users
+  RefreshCw
 } from 'lucide-react';
-
-const INDIAN_CITIES = [
-  { label: 'All India', value: '' },
-  { label: 'Bengaluru', value: 'Bengaluru' },
-  { label: 'Delhi NCR', value: 'Delhi' },
-  { label: 'Mumbai', value: 'Mumbai' },
-  { label: 'Hyderabad', value: 'Hyderabad' },
-  { label: 'Chennai', value: 'Chennai' },
-  { label: 'Pune', value: 'Pune' },
-  { label: 'Kolkata', value: 'Kolkata' },
-  { label: 'Gurugram', value: 'Gurugram' },
-  { label: 'Mohali / Chd', value: 'Mohali' },
-  { label: 'Ahmedabad', value: 'Ahmedabad' },
-  { label: 'Jaipur', value: 'Jaipur' },
-  { label: 'Lucknow', value: 'Lucknow' },
-  { label: 'Kochi', value: 'Kochi' }
-];
-
-const SPECIALIZATIONS_LIST = [
-  'General Medicine',
-  'Cardiology',
-  'Dermatology',
-  'Pediatrics',
-  'Orthopedics',
-  'Neurology',
-  'ENT',
-  'Gynecology',
-  'Ophthalmology',
-  'Psychiatry',
-  'Pulmonology',
-  'Gastroenterology',
-  'Endocrinology',
-  'Urology'
-];
-
-const PLACE_TYPES_LIST = [
-  { label: 'All Facilities', value: '' },
-  { label: 'Hospitals', value: 'hospital' },
-  { label: 'Medical Clinics', value: 'medical_clinic' },
-  { label: 'Pharmacies', value: 'pharmacy' }
-];
 
 const DoctorSearchPage = () => {
   const navigate = useNavigate();
@@ -76,205 +33,107 @@ const DoctorSearchPage = () => {
   const mapSectionRef = useRef(null);
   const doctorResultsRef = useRef(null);
 
-  // Tab State: 'doctors' | 'places'
-  const [activeTab, setActiveTab] = useState('doctors');
+  // Consume shared persistent state
+  const {
+    activeTab,
+    setActiveTab,
+    name,
+    setName,
+    specialization,
+    setSpecialization,
+    location,
+    setLocation,
+    doctors,
+    doctorPracticePlaces,
+    hasDoctorsFetched,
+    isLoading,
+    fetchDoctors,
+    resetDoctorFilters,
+    findMatchingDoctorsForPlace,
+    placesQuery,
+    setPlacesQuery,
+    placesCity,
+    setPlacesCity,
+    placesType,
+    setPlacesType,
+    places,
+    hasPlacesFetched,
+    nextPageToken,
+    isPlacesLoading,
+    isLoadingMore,
+    placesError,
+    placesStatus,
+    placesAttribution,
+    retryAfterSeconds,
+    fetchPlaces,
+    checkPlacesStatus,
+    resetPlacesFilters,
+    selectedPlaceId,
+    setSelectedPlaceId,
+    mapCenter,
+    mapZoom,
+    setMapPosition,
+    lastSearchedAt,
+    isRefreshing,
+    refreshAll
+  } = useDoctorSearch();
 
   // Map visibility toggle on Doctors tab
   const [showDoctorsMap, setShowDoctorsMap] = useState(true);
 
-  // Selected Place ID for map synchronization
-  const [selectedPlaceId, setSelectedPlaceId] = useState(null);
-
-  // Doctor Search State
-  const [name, setName] = useState(searchParams.get('name') || '');
-  const [specialization, setSpecialization] = useState(searchParams.get('specialization') || '');
-  const [location, setLocation] = useState(searchParams.get('location') || '');
-  const [doctors, setDoctors] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Places Search State (Google Places New API)
-  const [placesQuery, setPlacesQuery] = useState('Hospital');
-  const [placesCity, setPlacesCity] = useState('');
-  const [placesType, setPlacesType] = useState('hospital');
-  const [places, setPlaces] = useState([]);
-  const [nextPageToken, setNextPageToken] = useState(null);
-  const [isPlacesLoading, setIsPlacesLoading] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [placesError, setPlacesError] = useState(null);
-  const [placesStatus, setPlacesStatus] = useState(null);
-  const [placesAttribution, setPlacesAttribution] = useState('');
-  const [retryAfterSeconds, setRetryAfterSeconds] = useState(null);
-
-  // Pre-load doctors and check Places API status on mount
+  // Initialize data only if not previously fetched (preserves search across route navigation)
   useEffect(() => {
-    fetchDoctors();
     checkPlacesStatus();
-    fetchPlaces('Hospital', '', 'hospital');
-  }, []);
 
-  const checkPlacesStatus = async () => {
-    try {
-      const status = await placeService.getStatus();
-      setPlacesStatus(status);
-      if (status?.attribution) {
-        setPlacesAttribution(status.attribution);
-      }
-    } catch (err) {
-      console.warn('Google Places status endpoint unreachable:', err);
-    }
-  };
+    // Check URL query parameters if present on first load
+    const urlName = searchParams.get('name');
+    const urlSpec = searchParams.get('specialization');
+    const urlLoc = searchParams.get('location');
 
-  const fetchDoctors = async (overrideParams = {}) => {
-    setIsLoading(true);
-    try {
-      const queryName = overrideParams.name !== undefined ? overrideParams.name : name;
-      const querySpec = overrideParams.specialization !== undefined ? overrideParams.specialization : specialization;
-      const queryLoc = overrideParams.location !== undefined ? overrideParams.location : location;
-
-      const data = await doctorService.searchDoctors({
-        name: queryName.trim() || undefined,
-        specialization: querySpec.trim() || undefined,
-        location: queryLoc.trim() || undefined,
-      });
-      setDoctors(data || []);
-    } catch (err) {
-      console.error('Failed to search doctors:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchPlaces = async (query, city, placeType, pageToken = null, append = false) => {
-    if (append) {
-      setIsLoadingMore(true);
-    } else {
-      setIsPlacesLoading(true);
-      setPlacesError(null);
-      setRetryAfterSeconds(null);
+    if (urlName || urlSpec || urlLoc) {
+      if (urlName) setName(urlName);
+      if (urlSpec) setSpecialization(urlSpec);
+      if (urlLoc) setLocation(urlLoc);
+      fetchDoctors(
+        {
+          name: urlName || undefined,
+          specialization: urlSpec || undefined,
+          location: urlLoc || undefined
+        },
+        true
+      );
+    } else if (!hasDoctorsFetched) {
+      fetchDoctors();
     }
 
-    try {
-      const res = await placeService.searchPlaces({
-        query: query.trim() || 'Hospital',
-        city: city.trim() || undefined,
-        placeType: placeType || undefined,
-        pageToken: pageToken || undefined,
-        pageSize: 12
-      });
-
-      const returnedPlaces = res.places || [];
-      if (append) {
-        setPlaces((prev) => {
-          const existingIds = new Set(prev.map((p) => p.id));
-          const unique = returnedPlaces.filter((p) => !existingIds.has(p.id));
-          return [...prev, ...unique];
-        });
-      } else {
-        setPlaces(returnedPlaces);
-      }
-      setNextPageToken(res.nextPageToken || null);
-      if (res.attribution) setPlacesAttribution(res.attribution);
-    } catch (err) {
-      if (err.response?.status === 429) {
-        const retryHeader = err.response.headers?.['retry-after'];
-        const secs = retryHeader ? parseInt(retryHeader, 10) : 60;
-        setRetryAfterSeconds(secs);
-        setPlacesError(`Per-minute rate limit reached. Please wait ${secs}s before submitting another query.`);
-      } else if (err.response?.status === 503) {
-        setPlacesError(err.response?.data?.message || 'Google Places integration is currently in standby mode.');
-      } else if (err.response?.status === 401) {
-        setPlacesError('Please log in to search live facilities with Google Places.');
-      } else {
-        setPlacesError(err.response?.data?.message || 'Unable to retrieve healthcare facilities at this time.');
-      }
-    } finally {
-      setIsPlacesLoading(false);
-      setIsLoadingMore(false);
+    if (!hasPlacesFetched) {
+      fetchPlaces('Hospital', '', 'hospital');
     }
-  };
-
-  /**
-   * Group verified doctors by hospital GPS coordinates into map-renderable facilities.
-   * Ensures genuine doctor practice markers appear dynamically across India on the map.
-   */
-  const doctorPracticePlaces = useMemo(() => {
-    if (!doctors || doctors.length === 0) return [];
-
-    const groupMap = new Map();
-
-    doctors.forEach((doc) => {
-      if (typeof doc.latitude === 'number' && typeof doc.longitude === 'number') {
-        const key = `${doc.latitude.toFixed(4)}_${doc.longitude.toFixed(4)}`;
-        if (!groupMap.has(key)) {
-          const rawHospital = doc.hospitalName || (doc.location ? doc.location.split(',')[0].trim() : 'Medical Center');
-          groupMap.set(key, {
-            id: `practice-${key}`,
-            displayName: rawHospital,
-            formattedAddress: doc.location || `${rawHospital}, India`,
-            latitude: doc.latitude,
-            longitude: doc.longitude,
-            primaryType: 'hospital',
-            isDoctorPractice: true,
-            googleMapsUri: `https://www.google.com/maps/search/?api=1&query=${doc.latitude},${doc.longitude}`,
-            doctors: []
-          });
-        }
-        groupMap.get(key).doctors.push(doc);
-      }
-    });
-
-    return Array.from(groupMap.values()).map((facility) => ({
-      ...facility,
-      doctorCount: facility.doctors.length
-    }));
-  }, [doctors]);
-
-  /**
-   * Helper to check whether any CareSync verified doctors match a Google Place result.
-   */
-  const findMatchingDoctorsForPlace = (place) => {
-    if (!doctors || doctors.length === 0 || !place.displayName) return [];
-    const placeNameLower = place.displayName.toLowerCase();
-
-    return doctors.filter((doc) => {
-      const docHospital = (doc.hospitalName || '').toLowerCase();
-      if (docHospital && (placeNameLower.includes(docHospital) || docHospital.includes(placeNameLower))) {
-        return true;
-      }
-      return false;
-    });
-  };
+  }, []); // Run on mount; if already hydrated from context or sessionStorage, avoids repeated API calls
 
   // Doctors Tab Filter Submissions
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchDoctors();
+    fetchDoctors({}, true);
   };
 
   const handleCitySelect = (cityValue) => {
     const isCurrent = cityValue === '' ? !location : location.toLowerCase().includes(cityValue.toLowerCase());
     const newLoc = isCurrent && cityValue !== '' ? '' : cityValue;
     setLocation(newLoc);
-    fetchDoctors({ location: newLoc });
-  };
-
-  const handleResetFilters = () => {
-    setName('');
-    setSpecialization('');
-    setLocation('');
-    fetchDoctors({ name: '', specialization: '', location: '' });
+    fetchDoctors({ location: newLoc }, true);
   };
 
   // Places Tab Search Submissions
   const handlePlacesSearch = (e) => {
     if (e) e.preventDefault();
-    fetchPlaces(placesQuery, placesCity, placesType);
+    fetchPlaces(placesQuery, placesCity, placesType, null, false, true);
   };
 
   const handlePlacesCitySelect = (cityValue) => {
     const newCity = placesCity === cityValue ? '' : cityValue;
     setPlacesCity(newCity);
-    fetchPlaces(placesQuery, newCity, placesType);
+    fetchPlaces(placesQuery, newCity, placesType, null, false, true);
   };
 
   const handleLoadMorePlaces = () => {
@@ -289,7 +148,7 @@ const DoctorSearchPage = () => {
 
     setLocation(cleanFacilityName);
     setActiveTab('doctors');
-    fetchDoctors({ location: cleanFacilityName });
+    fetchDoctors({ location: cleanFacilityName }, true);
 
     setTimeout(() => {
       if (doctorResultsRef.current) {
@@ -320,6 +179,11 @@ const DoctorSearchPage = () => {
     }
   };
 
+  // Format last updated timestamp
+  const formattedLastUpdated = lastSearchedAt
+    ? new Date(lastSearchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -347,35 +211,54 @@ const DoctorSearchPage = () => {
           </p>
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+        {/* View Switcher Tabs & Manual Refresh Action */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {formattedLastUpdated && (
+            <span className="text-[11px] text-slate-400 font-medium hidden lg:inline mr-1">
+              Cached: {formattedLastUpdated}
+            </span>
+          )}
+
           <button
             type="button"
-            onClick={() => setActiveTab('doctors')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'doctors'
-                ? 'bg-white text-navy-900 shadow-xs'
-                : 'text-slate-600 hover:text-navy-900'
-            }`}
+            onClick={refreshAll}
+            disabled={isRefreshing || isLoading || isPlacesLoading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-2xs transition-all disabled:opacity-50"
+            title="Refresh search results from backend"
           >
-            <Stethoscope className="w-4 h-4 text-primary-600" />
-            <span>Specialist Doctors</span>
+            <RotateCcw className={`w-3.5 h-3.5 text-primary-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('places');
-              if (places.length === 0) fetchPlaces(placesQuery, placesCity, placesType);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'places'
-                ? 'bg-white text-navy-900 shadow-xs'
-                : 'text-slate-600 hover:text-navy-900'
-            }`}
-          >
-            <Building2 className="w-4 h-4 text-primary-600" />
-            <span>Hospitals &amp; Clinics</span>
-          </button>
+
+          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setActiveTab('doctors')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'doctors'
+                  ? 'bg-white text-navy-900 shadow-xs'
+                  : 'text-slate-600 hover:text-navy-900'
+              }`}
+            >
+              <Stethoscope className="w-4 h-4 text-primary-600" />
+              <span>Specialist Doctors</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('places');
+                if (places.length === 0) fetchPlaces(placesQuery, placesCity, placesType);
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'places'
+                  ? 'bg-white text-navy-900 shadow-xs'
+                  : 'text-slate-600 hover:text-navy-900'
+              }`}
+            >
+              <Building2 className="w-4 h-4 text-primary-600" />
+              <span>Hospitals &amp; Clinics</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -427,10 +310,11 @@ const DoctorSearchPage = () => {
 
               <button
                 type="submit"
-                className="w-full lg:w-auto px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs sm:text-sm rounded-full shadow-md shadow-primary-600/20 transition-all flex items-center justify-center gap-2 shrink-0"
+                disabled={isLoading}
+                className="w-full lg:w-auto px-6 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm rounded-full shadow-md shadow-primary-600/20 transition-all flex items-center justify-center gap-2 shrink-0"
               >
                 <Filter className="w-4 h-4" />
-                <span>Search Doctors</span>
+                <span>{isLoading ? 'Searching...' : 'Search Doctors'}</span>
               </button>
             </form>
 
@@ -441,9 +325,10 @@ const DoctorSearchPage = () => {
                   <Building2 className="w-3.5 h-3.5 text-primary-600" /> Filter Region:
                 </span>
                 {INDIAN_CITIES.map((city) => {
-                  const isSelected = city.value === ''
-                    ? !location
-                    : location.toLowerCase().includes(city.value.toLowerCase());
+                  const isSelected =
+                    city.value === ''
+                      ? !location
+                      : location.toLowerCase().includes(city.value.toLowerCase());
 
                   return (
                     <button
@@ -474,7 +359,7 @@ const DoctorSearchPage = () => {
 
                 {(name || specialization || location) && (
                   <button
-                    onClick={handleResetFilters}
+                    onClick={resetDoctorFilters}
                     className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-3 py-1 rounded-full border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -495,6 +380,9 @@ const DoctorSearchPage = () => {
                   onSelectPlace={handleSelectPlaceOnMap}
                   onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
                   activeCity={location || 'India'}
+                  savedCenter={mapCenter}
+                  savedZoom={mapZoom}
+                  onMapPositionChange={setMapPosition}
                   isLoading={isLoading}
                   error={null}
                   height="h-[380px] sm:h-[420px]"
@@ -547,7 +435,7 @@ const DoctorSearchPage = () => {
                 </p>
               </div>
               <button
-                onClick={handleResetFilters}
+                onClick={resetDoctorFilters}
                 className="px-5 py-2.5 bg-primary-600 text-white text-xs font-bold rounded-full shadow-xs hover:bg-primary-700 transition-colors"
               >
                 Show All Doctors Across India
@@ -734,25 +622,38 @@ const DoctorSearchPage = () => {
               </button>
             </form>
 
-            {/* Quick Filter City Buttons */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-primary-600" /> Popular Regions:
-              </span>
-              {INDIAN_CITIES.map((city) => (
+            {/* Quick Filter City Buttons & Reset */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-primary-600" /> Popular Regions:
+                </span>
+                {INDIAN_CITIES.map((city) => (
+                  <button
+                    key={city.value || 'all'}
+                    type="button"
+                    onClick={() => handlePlacesCitySelect(city.value)}
+                    className={`text-xs px-3.5 py-1 rounded-full border transition-all ${
+                      placesCity === city.value
+                        ? 'bg-primary-600 text-white border-primary-600 font-bold shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300 hover:text-primary-700'
+                    }`}
+                  >
+                    {city.label}
+                  </button>
+                ))}
+              </div>
+
+              {(placesQuery !== 'Hospital' || placesCity !== '' || placesType !== 'hospital') && (
                 <button
-                  key={city.value || 'all'}
                   type="button"
-                  onClick={() => handlePlacesCitySelect(city.value)}
-                  className={`text-xs px-3.5 py-1 rounded-full border transition-all ${
-                    placesCity === city.value
-                      ? 'bg-primary-600 text-white border-primary-600 font-bold shadow-xs'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-primary-300 hover:text-primary-700'
-                  }`}
+                  onClick={resetPlacesFilters}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 px-3 py-1 rounded-full border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors"
                 >
-                  {city.label}
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Filters</span>
                 </button>
-              ))}
+              )}
             </div>
           </div>
 
@@ -765,6 +666,9 @@ const DoctorSearchPage = () => {
                 onSelectPlace={handleSelectPlaceOnMap}
                 onSelectFacilityForDoctorSearch={handleSelectFacilityForDoctorSearch}
                 activeCity={placesCity || 'India'}
+                savedCenter={mapCenter}
+                savedZoom={mapZoom}
+                onMapPositionChange={setMapPosition}
                 isLoading={isPlacesLoading}
                 error={placesError}
                 height="h-[440px] sm:h-[480px]"
@@ -813,7 +717,7 @@ const DoctorSearchPage = () => {
                 type="button"
                 onClick={() => {
                   setPlacesQuery('Apollo Hospital');
-                  fetchPlaces('Apollo Hospital', placesCity, placesType);
+                  fetchPlaces('Apollo Hospital', placesCity, placesType, null, false, true);
                 }}
                 className="px-5 py-2.5 bg-primary-600 text-white text-xs font-bold rounded-full shadow-xs hover:bg-primary-700 transition-colors"
               >
@@ -824,9 +728,7 @@ const DoctorSearchPage = () => {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {places.map((place) => {
-                  const photoUrl = place.photoUrls && place.photoUrls.length > 0
-                    ? place.photoUrls[0]
-                    : null;
+                  const photoUrl = place.photoUrls && place.photoUrls.length > 0 ? place.photoUrls[0] : null;
                   const isSelected = selectedPlaceId === place.id;
                   const matchingDocs = findMatchingDoctorsForPlace(place);
 
@@ -834,9 +736,7 @@ const DoctorSearchPage = () => {
                     <div
                       key={place.id}
                       className={`bg-white rounded-3xl border overflow-hidden shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between group ${
-                        isSelected
-                          ? 'border-primary-500 ring-2 ring-primary-500/20'
-                          : 'border-slate-200/90'
+                        isSelected ? 'border-primary-500 ring-2 ring-primary-500/20' : 'border-slate-200/90'
                       }`}
                     >
                       <div>

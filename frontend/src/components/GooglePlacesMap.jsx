@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, Component } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo, Component } from 'react';
 import {
   MapPin,
   Building2,
@@ -15,28 +15,7 @@ import {
   CheckCircle2,
   Users
 } from 'lucide-react';
-
-/**
- * City coordinate defaults across major Indian metropolitan regions.
- */
-const CITY_COORDINATES = {
-  Bengaluru: { lat: 12.9716, lng: 77.5946, zoom: 12 },
-  Bangalore: { lat: 12.9716, lng: 77.5946, zoom: 12 },
-  Mumbai: { lat: 19.0760, lng: 72.8777, zoom: 12 },
-  'Delhi NCR': { lat: 28.6139, lng: 77.2090, zoom: 11 },
-  Delhi: { lat: 28.6139, lng: 77.2090, zoom: 11 },
-  Hyderabad: { lat: 17.3850, lng: 78.4867, zoom: 12 },
-  Chennai: { lat: 13.0827, lng: 80.2707, zoom: 12 },
-  Pune: { lat: 18.5204, lng: 73.8567, zoom: 12 },
-  Kolkata: { lat: 22.5726, lng: 88.3639, zoom: 12 },
-  Gurugram: { lat: 28.4595, lng: 77.0266, zoom: 12 },
-  Mohali: { lat: 30.7046, lng: 76.7179, zoom: 12 },
-  Ahmedabad: { lat: 23.0225, lng: 72.5714, zoom: 12 },
-  Jaipur: { lat: 26.9124, lng: 75.7873, zoom: 12 },
-  Lucknow: { lat: 26.8467, lng: 80.9462, zoom: 12 },
-  Kochi: { lat: 9.9312, lng: 76.2673, zoom: 12 },
-  India: { lat: 20.5937, lng: 78.9629, zoom: 5 }
-};
+import { CITY_COORDINATES } from '../constants/medicalFacilities';
 
 /**
  * Custom SVG Marker Icon Generator for Google Maps & Leaflet
@@ -144,6 +123,9 @@ const GooglePlacesMap = ({
   onSelectPlace = () => {},
   onSelectFacilityForDoctorSearch = () => {},
   activeCity = '',
+  savedCenter = null,
+  savedZoom = null,
+  onMapPositionChange = null,
   isLoading = false,
   error = null,
   height = 'h-[440px]',
@@ -152,8 +134,10 @@ const GooglePlacesMap = ({
 }) => {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markersRef = useRef([]);
+  const markersMapRef = useRef(new Map()); // placeId -> marker instance
   const infoWindowRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const isProgrammaticMoveRef = useRef(false);
 
   const [activeEngine, setActiveEngine] = useState('detecting');
   const [createdMarkersCount, setCreatedMarkersCount] = useState(0);
@@ -168,25 +152,31 @@ const GooglePlacesMap = ({
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-  // Intercept Google Maps errors
+  // Intercept Google Maps console errors safely
   useEffect(() => {
+    isMountedRef.current = true;
     const originalConsoleError = console.error;
     console.error = (...args) => {
-      const msg = args.map((a) => (typeof a === 'string' ? a : (a?.message || ''))).join(' ');
+      const msg = args.map((a) => (typeof a === 'string' ? a : a?.message || '')).join(' ');
       if (
         msg.includes('ApiNotActivatedMapError') ||
         msg.includes('This API is not activated on your API project')
       ) {
-        setApiNotActivated(true);
-        setActiveEngine('leaflet');
+        if (isMountedRef.current) {
+          setApiNotActivated(true);
+          setActiveEngine('leaflet');
+        }
       } else if (msg.includes('RefererNotAllowedMapError') || msg.includes('InvalidKeyMapError')) {
-        setAuthError(true);
-        setActiveEngine('leaflet');
+        if (isMountedRef.current) {
+          setAuthError(true);
+          setActiveEngine('leaflet');
+        }
       }
       originalConsoleError.apply(console, args);
     };
 
     return () => {
+      isMountedRef.current = false;
       console.error = originalConsoleError;
     };
   }, []);
@@ -196,6 +186,8 @@ const GooglePlacesMap = ({
     if (selectedPlaceId) {
       const match = places.find((p) => p.id === selectedPlaceId);
       if (match) setActivePlace(match);
+    } else {
+      setActivePlace(null);
     }
   }, [selectedPlaceId, places]);
 
@@ -208,8 +200,10 @@ const GooglePlacesMap = ({
 
     window.gm_authFailure = () => {
       console.warn('Google Maps API authentication failed.');
-      setAuthError(true);
-      setActiveEngine('leaflet');
+      if (isMountedRef.current) {
+        setAuthError(true);
+        setActiveEngine('leaflet');
+      }
     };
 
     if (window.google?.maps?.Map) {
@@ -225,7 +219,7 @@ const GooglePlacesMap = ({
         setActiveEngine((prev) => (prev === 'detecting' ? 'google' : prev));
       } else {
         existingScript.addEventListener('load', () => {
-          if (window.google?.maps?.Map) {
+          if (isMountedRef.current && window.google?.maps?.Map) {
             setIsScriptLoaded(true);
             setActiveEngine((prev) => (prev === 'detecting' ? 'google' : prev));
           }
@@ -241,11 +235,16 @@ const GooglePlacesMap = ({
     script.defer = true;
 
     script.onload = () => {
+      if (!isMountedRef.current) return;
       if (window.google?.maps?.Map) {
         setIsScriptLoaded(true);
         setActiveEngine((prev) => (prev === 'detecting' ? 'google' : prev));
       } else {
         const checkTimer = setInterval(() => {
+          if (!isMountedRef.current) {
+            clearInterval(checkTimer);
+            return;
+          }
           if (window.google?.maps?.Map) {
             clearInterval(checkTimer);
             setIsScriptLoaded(true);
@@ -257,6 +256,7 @@ const GooglePlacesMap = ({
     };
 
     script.onerror = () => {
+      if (!isMountedRef.current) return;
       setScriptLoadError('Unable to load Google Maps SDK');
       setActiveEngine('leaflet');
     };
@@ -286,38 +286,56 @@ const GooglePlacesMap = ({
       script.id = 'leaflet-js';
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.async = true;
-      script.onload = () => setIsLeafletLoaded(true);
-      script.onerror = () => setInitError('Could not load map tile engine.');
+      script.onload = () => {
+        if (isMountedRef.current) setIsLeafletLoaded(true);
+      };
+      script.onerror = () => {
+        if (isMountedRef.current) setInitError('Could not load map tile engine.');
+      };
       document.head.appendChild(script);
     } else {
       const existing = document.getElementById('leaflet-js');
-      existing.addEventListener('load', () => setIsLeafletLoaded(true));
+      existing.addEventListener('load', () => {
+        if (isMountedRef.current) setIsLeafletLoaded(true);
+      });
     }
   }, [activeEngine]);
 
-  // Initialize Map Instance
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
-
-    if (mapInstanceRef.current && typeof mapInstanceRef.current.remove === 'function') {
-      try {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      } catch (e) {
-        // ignore
-      }
+  // Determine initial coordinates based on saved position or city
+  const determineInitialCoords = useCallback(() => {
+    if (savedCenter && typeof savedCenter.lat === 'number' && typeof savedCenter.lng === 'number') {
+      return {
+        lat: savedCenter.lat,
+        lng: savedCenter.lng,
+        zoom: typeof savedZoom === 'number' ? savedZoom : 12
+      };
     }
+    const cityKey = activeCity || 'India';
+    return CITY_COORDINATES[cityKey] || CITY_COORDINATES.India;
+  }, [savedCenter, savedZoom, activeCity]);
 
-    const cityKey = activeCity || (places.length > 0 ? '' : 'India');
-    const initialCenter = CITY_COORDINATES[cityKey] || CITY_COORDINATES.India;
+  // Initialize Map Instance (Only on engine readiness or container attach, NOT on activeCity changes)
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    const initialCoords = determineInitialCoords();
 
     // ENGINE A: GOOGLE MAPS
     if (activeEngine === 'google' && isScriptLoaded && window.google?.maps?.Map && !authError && !apiNotActivated) {
       try {
-        mapContainerRef.current.innerHTML = '';
-        const map = new window.google.maps.Map(mapContainerRef.current, {
-          center: { lat: initialCenter.lat, lng: initialCenter.lng },
-          zoom: initialCenter.zoom,
+        // Clean container before first mount if needed
+        if (mapInstanceRef.current) {
+          if (typeof mapInstanceRef.current.remove === 'function') {
+            mapInstanceRef.current.remove();
+          }
+          mapInstanceRef.current = null;
+        }
+        container.innerHTML = '';
+
+        const map = new window.google.maps.Map(container, {
+          center: { lat: initialCoords.lat, lng: initialCoords.lng },
+          zoom: initialCoords.zoom,
           styles: MAP_STYLES,
           mapTypeId: mapType,
           mapTypeControl: false,
@@ -327,34 +345,55 @@ const GooglePlacesMap = ({
         });
 
         mapInstanceRef.current = map;
+
         if (window.google?.maps?.InfoWindow) {
           infoWindowRef.current = new window.google.maps.InfoWindow();
         }
 
         map.addListener('click', () => {
-          setActivePlace(null);
-          if (infoWindowRef.current) infoWindowRef.current.close();
+          if (isMountedRef.current) {
+            setActivePlace(null);
+            if (infoWindowRef.current) infoWindowRef.current.close();
+          }
+        });
+
+        // Persist center & zoom when user pans/zooms map
+        map.addListener('idle', () => {
+          if (!isMountedRef.current || isProgrammaticMoveRef.current) return;
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          if (center && onMapPositionChange) {
+            onMapPositionChange({ lat: center.lat(), lng: center.lng() }, zoom);
+          }
         });
 
         setTimeout(() => {
-          if (window.google?.maps?.event) {
+          if (isMountedRef.current && window.google?.maps?.event) {
             window.google.maps.event.trigger(map, 'resize');
           }
-        }, 200);
+        }, 150);
       } catch (err) {
         console.warn('Google Maps init failed, switching to OpenStreetMap tiles:', err);
-        setActiveEngine('leaflet');
+        if (isMountedRef.current) setActiveEngine('leaflet');
       }
     }
 
-    // ENGINE B: LEAFLET (GUARANTEED OPENSTREETMAP REAL TILES)
+    // ENGINE B: LEAFLET (GUARANTEED REAL TILES)
     if (activeEngine === 'leaflet' && isLeafletLoaded && window.L) {
       try {
-        mapContainerRef.current.innerHTML = '';
+        if (mapInstanceRef.current && typeof mapInstanceRef.current.remove === 'function') {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+        if (container._leaflet_id) {
+          container._leaflet_id = null;
+        }
+        container.innerHTML = '';
+
         const L = window.L;
-        const map = L.map(mapContainerRef.current, {
-          center: [initialCenter.lat, initialCenter.lng],
-          zoom: initialCenter.zoom,
+        const map = L.map(container, {
+          center: [initialCoords.lat, initialCoords.lng],
+          zoom: initialCoords.zoom,
           zoomControl: true
         });
 
@@ -364,20 +403,83 @@ const GooglePlacesMap = ({
         }).addTo(map);
 
         map.on('click', () => {
-          setActivePlace(null);
+          if (isMountedRef.current) setActivePlace(null);
+        });
+
+        // Persist center & zoom when user pans/zooms map in Leaflet
+        map.on('moveend', () => {
+          if (!isMountedRef.current || isProgrammaticMoveRef.current) return;
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          if (center && onMapPositionChange) {
+            onMapPositionChange({ lat: center.lat, lng: center.lng }, zoom);
+          }
         });
 
         mapInstanceRef.current = map;
 
         setTimeout(() => {
-          map.invalidateSize();
+          if (isMountedRef.current) map.invalidateSize();
         }, 150);
       } catch (err) {
         console.error('Leaflet initialization failed:', err);
-        setInitError('Failed to initialize map canvas.');
+        if (isMountedRef.current) setInitError('Failed to initialize map canvas.');
       }
     }
-  }, [activeEngine, isScriptLoaded, isLeafletLoaded, authError, apiNotActivated, activeCity]);
+
+    // React StrictMode & unmount cleanup
+    return () => {
+      // Clear markers
+      markersMapRef.current.forEach((marker) => {
+        if (marker && typeof marker.setMap === 'function') marker.setMap(null);
+        if (marker && typeof marker.remove === 'function') marker.remove();
+      });
+      markersMapRef.current.clear();
+
+      if (mapInstanceRef.current) {
+        try {
+          if (typeof mapInstanceRef.current.remove === 'function') {
+            mapInstanceRef.current.remove();
+          } else if (window.google?.maps?.event) {
+            window.google.maps.event.clearInstanceListeners(mapInstanceRef.current);
+          }
+        } catch (e) {
+          // ignore
+        }
+        mapInstanceRef.current = null;
+      }
+
+      if (container && container._leaflet_id) {
+        container._leaflet_id = null;
+      }
+    };
+  }, [activeEngine, isScriptLoaded, isLeafletLoaded, authError, apiNotActivated]);
+
+  // Handle activeCity changes by panning/zooming existing map instance WITHOUT recreating it
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    if (savedCenter) return; // Prioritize preserved user position
+
+    const cityKey = activeCity || (places.length > 0 ? '' : 'India');
+    const coords = CITY_COORDINATES[cityKey];
+    if (!coords) return;
+
+    isProgrammaticMoveRef.current = true;
+    try {
+      if (activeEngine === 'google' && typeof mapInstanceRef.current.panTo === 'function') {
+        mapInstanceRef.current.panTo({ lat: coords.lat, lng: coords.lng });
+        mapInstanceRef.current.setZoom(coords.zoom);
+      } else if (activeEngine === 'leaflet' && typeof mapInstanceRef.current.setView === 'function') {
+        mapInstanceRef.current.setView([coords.lat, coords.lng], coords.zoom);
+      }
+    } catch (e) {
+      console.warn('Could not update map center on activeCity change:', e);
+    } finally {
+      setTimeout(() => {
+        isProgrammaticMoveRef.current = false;
+      }, 300);
+    }
+  }, [activeCity, activeEngine, savedCenter]);
 
   // Handle Map Type Toggle for Google Maps
   const toggleMapType = () => {
@@ -395,6 +497,7 @@ const GooglePlacesMap = ({
     const cityKey = activeCity || (places.length > 0 ? '' : 'India');
     const coords = CITY_COORDINATES[cityKey] || CITY_COORDINATES.India;
 
+    isProgrammaticMoveRef.current = true;
     try {
       if (activeEngine === 'google' && typeof mapInstanceRef.current.panTo === 'function') {
         mapInstanceRef.current.panTo({ lat: coords.lat, lng: coords.lng });
@@ -402,75 +505,123 @@ const GooglePlacesMap = ({
       } else if (activeEngine === 'leaflet' && typeof mapInstanceRef.current.setView === 'function') {
         mapInstanceRef.current.setView([coords.lat, coords.lng], coords.zoom);
       }
+      if (onMapPositionChange) {
+        onMapPositionChange({ lat: coords.lat, lng: coords.lng }, coords.zoom);
+      }
     } catch (e) {
       console.warn('Could not recenter map:', e);
+    } finally {
+      setTimeout(() => {
+        isProgrammaticMoveRef.current = false;
+      }, 300);
     }
-  }, [activeCity, activeEngine, places]);
+  }, [activeCity, activeEngine, places, onMapPositionChange]);
 
-  // Render & Update Markers when Places change
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-
-    // Filter places that have genuine numeric latitude and longitude
-    const validPlaces = places.filter(
+  // Filter places that have genuine valid numeric latitude and longitude
+  const validPlaces = useMemo(() => {
+    return places.filter(
       (p) =>
+        p &&
         typeof p.latitude === 'number' &&
         typeof p.longitude === 'number' &&
         !isNaN(p.latitude) &&
-        !isNaN(p.longitude)
+        !isNaN(p.longitude) &&
+        p.latitude >= -90 &&
+        p.latitude <= 90 &&
+        p.longitude >= -180 &&
+        p.longitude <= 180
     );
+  }, [places]);
+
+  // Synchronize Markers (Deltas & Re-use: Avoid wiping and recreating unnecessarily)
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    const currentMarkersMap = markersMapRef.current;
+    const validPlaceIds = new Set(validPlaces.map((p) => p.id));
+
+    // 1. Remove obsolete markers
+    currentMarkersMap.forEach((marker, id) => {
+      if (!validPlaceIds.has(id)) {
+        if (marker && typeof marker.setMap === 'function') marker.setMap(null);
+        if (marker && typeof marker.remove === 'function') marker.remove();
+        currentMarkersMap.delete(id);
+      }
+    });
+
+    if (validPlaces.length === 0) {
+      setCreatedMarkersCount(0);
+      if (!savedCenter && activeCity) {
+        const c = CITY_COORDINATES[activeCity] || CITY_COORDINATES.India;
+        if (activeEngine === 'google' && typeof mapInstanceRef.current.panTo === 'function') {
+          mapInstanceRef.current.panTo({ lat: c.lat, lng: c.lng });
+          mapInstanceRef.current.setZoom(c.zoom);
+        } else if (activeEngine === 'leaflet' && typeof mapInstanceRef.current.setView === 'function') {
+          mapInstanceRef.current.setView([c.lat, c.lng], c.zoom);
+        }
+      }
+      return;
+    }
 
     // MODE 1: GOOGLE MAPS MARKERS
-    if (activeEngine === 'google' && window.google?.maps?.Marker && window.google?.maps?.LatLngBounds) {
+    if (activeEngine === 'google' && window.google?.maps?.Marker) {
       try {
         const map = mapInstanceRef.current;
-
-        markersRef.current.forEach((m) => {
-          if (m && typeof m.setMap === 'function') m.setMap(null);
-        });
-        markersRef.current = [];
-
-        if (validPlaces.length === 0) {
-          setCreatedMarkersCount(0);
-          const c = CITY_COORDINATES[activeCity] || CITY_COORDINATES.India;
-          map.panTo({ lat: c.lat, lng: c.lng });
-          map.setZoom(c.zoom);
-          return;
-        }
-
         const bounds = new window.google.maps.LatLngBounds();
+        let hasNewMarkers = false;
 
         validPlaces.forEach((place) => {
           const position = { lat: place.latitude, lng: place.longitude };
           const isSelected = activePlace?.id === place.id;
           const isDocPractice = !!place.isDoctorPractice;
 
-          const marker = new window.google.maps.Marker({
-            position,
-            map,
-            title: place.displayName,
-            icon: createGoogleMarkerIcon(isSelected, isDocPractice),
-            zIndex: isSelected ? 999 : isDocPractice ? 50 : 10
-          });
+          let existingMarker = currentMarkersMap.get(place.id);
+          if (existingMarker) {
+            // Update icon and zIndex if selection state changed
+            existingMarker.setIcon(createGoogleMarkerIcon(isSelected, isDocPractice));
+            existingMarker.setZIndex(isSelected ? 999 : isDocPractice ? 50 : 10);
+          } else {
+            // Create new marker
+            hasNewMarkers = true;
+            const marker = new window.google.maps.Marker({
+              position,
+              map,
+              title: place.displayName,
+              icon: createGoogleMarkerIcon(isSelected, isDocPractice),
+              zIndex: isSelected ? 999 : isDocPractice ? 50 : 10
+            });
 
-          marker.addListener('click', () => {
-            setActivePlace(place);
-            onSelectPlace(place);
-            map.panTo(position);
-            map.setZoom(Math.max(map.getZoom(), 14));
-          });
+            marker.addListener('click', () => {
+              if (!isMountedRef.current) return;
+              setActivePlace(place);
+              onSelectPlace(place);
+              isProgrammaticMoveRef.current = true;
+              map.panTo(position);
+              map.setZoom(Math.max(map.getZoom(), 14));
+              if (onMapPositionChange) {
+                onMapPositionChange(position, Math.max(map.getZoom(), 14));
+              }
+              setTimeout(() => {
+                isProgrammaticMoveRef.current = false;
+              }, 300);
+            });
 
-          markersRef.current.push(marker);
+            currentMarkersMap.set(place.id, marker);
+          }
+
           bounds.extend(position);
         });
 
-        setCreatedMarkersCount(markersRef.current.length);
+        setCreatedMarkersCount(currentMarkersMap.size);
 
-        if (markersRef.current.length === 1) {
-          map.setCenter({ lat: validPlaces[0].latitude, lng: validPlaces[0].longitude });
-          map.setZoom(15);
-        } else if (markersRef.current.length > 1) {
-          map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+        // Only auto-fit bounds on initial load if no preserved position is set
+        if (!savedCenter && hasNewMarkers) {
+          if (currentMarkersMap.size === 1) {
+            map.setCenter({ lat: validPlaces[0].latitude, lng: validPlaces[0].longitude });
+            map.setZoom(15);
+          } else if (currentMarkersMap.size > 1) {
+            map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+          }
         }
       } catch (err) {
         console.error('Error updating Google Map markers:', err);
@@ -482,20 +633,8 @@ const GooglePlacesMap = ({
       try {
         const L = window.L;
         const map = mapInstanceRef.current;
-
-        markersRef.current.forEach((m) => {
-          if (m && typeof m.remove === 'function') m.remove();
-        });
-        markersRef.current = [];
-
-        if (validPlaces.length === 0) {
-          setCreatedMarkersCount(0);
-          const c = CITY_COORDINATES[activeCity] || CITY_COORDINATES.India;
-          map.setView([c.lat, c.lng], c.zoom);
-          return;
-        }
-
         const latLngs = [];
+        let hasNewMarkers = false;
 
         validPlaces.forEach((place) => {
           const latLng = [place.latitude, place.longitude];
@@ -509,34 +648,55 @@ const GooglePlacesMap = ({
             iconAnchor: isSelected ? [22, 60] : [18, 48]
           });
 
-          const marker = L.marker(latLng, { icon: customIcon, title: place.displayName });
+          let existingMarker = currentMarkersMap.get(place.id);
+          if (existingMarker) {
+            existingMarker.setIcon(customIcon);
+            existingMarker.setZIndexOffset(isSelected ? 999 : isDocPractice ? 50 : 10);
+          } else {
+            hasNewMarkers = true;
+            const marker = L.marker(latLng, {
+              icon: customIcon,
+              title: place.displayName,
+              zIndexOffset: isSelected ? 999 : isDocPractice ? 50 : 10
+            });
 
-          marker.on('click', () => {
-            setActivePlace(place);
-            onSelectPlace(place);
-            map.setView(latLng, Math.max(map.getZoom(), 14));
-          });
+            marker.on('click', () => {
+              if (!isMountedRef.current) return;
+              setActivePlace(place);
+              onSelectPlace(place);
+              isProgrammaticMoveRef.current = true;
+              map.setView(latLng, Math.max(map.getZoom(), 14));
+              if (onMapPositionChange) {
+                onMapPositionChange({ lat: place.latitude, lng: place.longitude }, Math.max(map.getZoom(), 14));
+              }
+              setTimeout(() => {
+                isProgrammaticMoveRef.current = false;
+              }, 300);
+            });
 
-          marker.addTo(map);
-          markersRef.current.push(marker);
+            marker.addTo(map);
+            currentMarkersMap.set(place.id, marker);
+          }
+
           latLngs.push(latLng);
         });
 
-        setCreatedMarkersCount(markersRef.current.length);
+        setCreatedMarkersCount(currentMarkersMap.size);
 
-        if (latLngs.length === 1) {
-          map.setView(latLngs[0], 15);
-        } else if (latLngs.length > 1) {
-          const bounds = L.latLngBounds(latLngs);
-          map.fitBounds(bounds, { padding: [50, 50] });
+        if (!savedCenter && hasNewMarkers) {
+          if (latLngs.length === 1) {
+            map.setView(latLngs[0], 15);
+          } else if (latLngs.length > 1) {
+            const bounds = L.latLngBounds(latLngs);
+            map.fitBounds(bounds, { padding: [50, 50] });
+          }
         }
-
         map.invalidateSize();
       } catch (err) {
         console.error('Error updating Leaflet markers:', err);
       }
     }
-  }, [places, activePlace, activeEngine, activeCity, onSelectPlace]);
+  }, [validPlaces, activePlace, activeEngine, activeCity, savedCenter, onSelectPlace, onMapPositionChange]);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200/90 shadow-card overflow-hidden">
@@ -666,11 +826,13 @@ const GooglePlacesMap = ({
                     }}
                   />
                 ) : (
-                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 border ${
-                    activePlace.isDoctorPractice
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                      : 'bg-ice-100 text-primary-600 border-primary-200'
-                  }`}>
+                  <div
+                    className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 border ${
+                      activePlace.isDoctorPractice
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                        : 'bg-ice-100 text-primary-600 border-primary-200'
+                    }`}
+                  >
                     <Building2 className="w-6 h-6" />
                   </div>
                 )}
@@ -774,7 +936,7 @@ const GooglePlacesMap = ({
         )}
 
         {/* Empty Places Notice */}
-        {!isLoading && places.length === 0 && !error && (
+        {!isLoading && validPlaces.length === 0 && !error && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4 z-10">
             <div className="bg-white/95 backdrop-blur-xs p-4 rounded-2xl border border-slate-200 shadow-md text-center max-w-sm pointer-events-auto space-y-1">
               <Building2 className="w-6 h-6 text-slate-400 mx-auto" />

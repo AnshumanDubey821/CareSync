@@ -322,6 +322,11 @@ const LandingPage = () => {
               <div className="pt-5 border-t border-slate-100 mt-4">
                 <a
                   href="#services-section"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
+                    window.history.pushState(null, '', '/#services-section');
+                  }}
                   className="text-xs font-bold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform uppercase tracking-wider"
                 >
                   <span>+ View All Departments</span>
@@ -356,7 +361,7 @@ const LandingPage = () => {
       </section>
 
       {/* 2. ABOUT CARESYNC / CENTRAL HOSPITAL SECTION (Mirroring Reference Image Middle Section) */}
-      <section id="about-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section id="about-section" className="scroll-mt-28 sm:scroll-mt-32 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           {/* Left: Full Standing Doctor holding Clipboard */}
           <div className="lg:col-span-5 flex justify-center">
@@ -437,7 +442,7 @@ const LandingPage = () => {
       </section>
 
       {/* 3. EXPLORE OUR SERVICES (DEPARTMENTS GRID — Directly inspired by Reference) */}
-      <section id="services-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section id="services-section" className="scroll-mt-28 sm:scroll-mt-32 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 gap-4">
           <div>
             <span className="section-eyebrow text-primary-600">~ DEPARTMENTS ~</span>
@@ -465,7 +470,16 @@ const LandingPage = () => {
             return (
               <div
                 key={item.name}
-                className="service-card flex flex-col justify-between group"
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSpecialtyClick(item.specParam)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSpecialtyClick(item.specParam);
+                  }
+                }}
+                className="service-card flex flex-col justify-between group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500/40"
               >
                 <div className="space-y-4">
                   {/* Circular Blue Icon Badge */}
@@ -485,7 +499,11 @@ const LandingPage = () => {
 
                 <div className="pt-4 border-t border-slate-200/60 mt-4">
                   <button
-                    onClick={() => handleSpecialtyClick(item.specParam)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSpecialtyClick(item.specParam);
+                    }}
                     className="text-xs font-bold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform uppercase tracking-wider"
                   >
                     <span>+ Book Specialist</span>
@@ -767,9 +785,45 @@ const LandingPage = () => {
             <div className="space-y-3">
               <h4 className="font-extrabold text-navy-900 text-xs uppercase tracking-wider">Quick Links</h4>
               <ul className="space-y-2">
-                <li><Link to="/" className="hover:text-primary-600 transition-colors">Home</Link></li>
+                <li>
+                  <Link
+                    to="/"
+                    onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      window.history.pushState(null, '', '/');
+                    }}
+                    className="hover:text-primary-600 transition-colors"
+                  >
+                    Home
+                  </Link>
+                </li>
+                <li>
+                  <a
+                    href="#about-section"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' });
+                      window.history.pushState(null, '', '/#about-section');
+                    }}
+                    className="hover:text-primary-600 transition-colors"
+                  >
+                    About CareSync
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#services-section"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
+                      window.history.pushState(null, '', '/#services-section');
+                    }}
+                    className="hover:text-primary-600 transition-colors"
+                  >
+                    Clinical Departments
+                  </a>
+                </li>
                 <li><Link to="/patient/doctors" className="hover:text-primary-600 transition-colors">Find Doctors</Link></li>
-                <li><a href="#services-section" className="hover:text-primary-600 transition-colors">Clinical Departments</a></li>
                 <li><Link to="/patient/appointments" className="hover:text-primary-600 transition-colors">My Consultations</Link></li>
               </ul>
             </div>

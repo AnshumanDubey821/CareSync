@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -21,6 +21,7 @@ const Navbar = () => {
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('hero');
 
   const handleLogout = () => {
     logout();
@@ -35,11 +36,97 @@ const Navbar = () => {
   };
 
   const navLinks = [
-    { label: 'Home', to: '/' },
-    { label: 'About', to: '/#about-section' },
-    { label: 'Services', to: '/#services-section' },
+    { label: 'Home', to: '/', sectionId: 'hero' },
+    { label: 'About', to: '/#about-section', sectionId: 'about-section' },
+    { label: 'Services', to: '/#services-section', sectionId: 'services-section' },
     { label: 'Find Doctors', to: '/patient/doctors' },
   ];
+
+  // Dynamic scroll-based section detection on the landing page
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setActiveSection('');
+      return;
+    }
+
+    const checkActiveSection = () => {
+      const scrollY = window.scrollY;
+      const aboutEl = document.getElementById('about-section');
+      const servicesEl = document.getElementById('services-section');
+
+      if (!aboutEl || !servicesEl) return;
+
+      const aboutTop = aboutEl.getBoundingClientRect().top + scrollY;
+      const servicesTop = servicesEl.getBoundingClientRect().top + scrollY;
+      const offset = 180; // Header offset threshold
+
+      if (scrollY + offset >= servicesTop) {
+        setActiveSection('services-section');
+      } else if (scrollY + offset >= aboutTop) {
+        setActiveSection('about-section');
+      } else {
+        setActiveSection('hero');
+      }
+    };
+
+    if (location.hash === '#services-section') {
+      setActiveSection('services-section');
+    } else if (location.hash === '#about-section') {
+      setActiveSection('about-section');
+    } else {
+      checkActiveSection();
+    }
+
+    window.addEventListener('scroll', checkActiveSection, { passive: true });
+    return () => window.removeEventListener('scroll', checkActiveSection);
+  }, [location.pathname, location.hash]);
+
+  const isItemActive = (item) => {
+    if (location.pathname === '/') {
+      if (item.sectionId) {
+        return activeSection === item.sectionId;
+      }
+      return false;
+    }
+    return location.pathname === item.to;
+  };
+
+  const handleNavClick = (e, item) => {
+    if (item.to === '/') {
+      if (location.pathname === '/') {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.history.pushState(null, '', '/');
+        setActiveSection('hero');
+      } else {
+        navigate('/');
+      }
+    } else if (item.sectionId && item.to.startsWith('/#')) {
+      if (location.pathname === '/') {
+        e.preventDefault();
+        const element = document.getElementById(item.sectionId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+        window.history.pushState(null, '', item.to);
+        setActiveSection(item.sectionId);
+      } else {
+        // Navigating from another route: navigate directly so ScrollToHash can handle smooth scroll
+        navigate(item.to);
+      }
+    } else {
+      navigate(item.to);
+    }
+  };
+
+  const handleLogoClick = (e) => {
+    if (location.pathname === '/') {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.history.pushState(null, '', '/');
+      setActiveSection('hero');
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-xs border-b border-slate-100">
@@ -73,7 +160,7 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
           {/* Logo Brand: Doctorate-style healthcare emblem */}
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link to="/" onClick={handleLogoClick} className="flex items-center gap-3 group">
             <div className="w-11 h-11 rounded-2xl bg-primary-600 text-white flex items-center justify-center shadow-md shadow-primary-600/30 group-hover:scale-105 transition-transform">
               <div className="relative">
                 <Activity className="w-6 h-6 stroke-[2.5]" />
@@ -91,22 +178,28 @@ const Navbar = () => {
 
           {/* Center Navigation Links */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            {navLinks.map((item) => (
-              <Link
-                key={item.label}
-                to={item.to}
-                className={`transition-colors hover:text-primary-600 ${
-                  location.pathname === item.to ? 'text-primary-600 font-bold' : ''
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navLinks.map((item) => {
+              const active = isItemActive(item);
+              return (
+                <Link
+                  key={item.label}
+                  to={item.to}
+                  onClick={(e) => handleNavClick(e, item)}
+                  className={`transition-colors hover:text-primary-600 ${
+                    active ? 'text-primary-600 font-bold' : ''
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
 
             {isAuthenticated && (
               <Link
                 to={getDashboardLink()}
-                className="transition-colors hover:text-primary-600 text-primary-700 font-bold"
+                className={`transition-colors hover:text-primary-600 ${
+                  location.pathname.includes('/dashboard') ? 'text-primary-600 font-bold' : 'text-primary-700 font-bold'
+                }`}
               >
                 Dashboard
               </Link>
@@ -191,16 +284,26 @@ const Navbar = () => {
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-slate-100 space-y-3 animate-in fade-in duration-150">
             <div className="space-y-1">
-              {navLinks.map((item) => (
-                <Link
-                  key={item.label}
-                  to={item.to}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {navLinks.map((item) => {
+                const active = isItemActive(item);
+                return (
+                  <Link
+                    key={item.label}
+                    to={item.to}
+                    onClick={(e) => {
+                      handleNavClick(e, item);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`block px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                      active
+                        ? 'bg-blue-50 text-primary-600 font-bold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
               {isAuthenticated && (
                 <Link
                   to={getDashboardLink()}

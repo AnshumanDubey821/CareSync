@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { DoctorSearchProvider } from './context/DoctorSearchContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Layouts
@@ -32,11 +33,14 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminDoctorManagementPage from './pages/AdminDoctorManagementPage';
 import AdminPatientManagementPage from './pages/AdminPatientManagementPage';
 import AdminAppointmentManagementPage from './pages/AdminAppointmentManagementPage';
+import ScrollToHash from './components/ScrollToHash';
 
 function App() {
   return (
     <AuthProvider>
-      <Routes>
+      <DoctorSearchProvider>
+        <ScrollToHash />
+        <Routes>
         {/* Public Main Site */}
         <Route path="/" element={<MainLayout />}>
           <Route index element={<LandingPage />} />
@@ -100,6 +104,7 @@ function App() {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </DoctorSearchProvider>
     </AuthProvider>
   );
 }
